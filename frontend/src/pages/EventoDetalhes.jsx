@@ -3,18 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';
 import { 
+  ArrowLeft, 
   Calendar, 
   MapPin, 
-  Ticket, 
-  ArrowLeft, 
-  Settings, 
   DollarSign, 
   Clock, 
-  Trash2,
-  Check
+  Ticket, 
+  Plus, 
+  Minus, 
+  Ban, 
+  Check, 
+  Settings,
+  ShoppingBag
 } from 'lucide-react';
 
-export default function EventoDetalhes() {
+export default function DetalhesEvento() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { usuario } = useContext(AuthContext);
@@ -22,314 +25,388 @@ export default function EventoDetalhes() {
   const [evento, setEvento] = useState(null);
   const [assentos, setAssentos] = useState([]);
   const [assentosSelecionados, setAssentosSelecionados] = useState([]);
+  const [quantidade, setQuantidade] = useState(1);
   const [carregando, setCarregando] = useState(true);
-  const [comprando, setComprando] = useState(false);
+  const [processando, setProcessando] = useState(false);
 
-  // Estados do Painel do Organizador
-  const [novoPreco, setNovoPreco] = useState('');
-  const [novaData, setNovaData] = useState('');
-  const [salvandoPreco, setSalvandoPreco] = useState(false);
-  const [reagendando, setReagendando] = useState(false);
+  // Estados para o Painel do Organizador
+  const [novoPrecoInput, setNovoPrecoInput] = useState('');
+  const [novaDataInput, setNovaDataInput] = useState('');
+  const [salvandoOrganizador, setSalvandoOrganizador] = useState(false);
 
   useEffect(() => {
-    carregarDetalhes();
+    carregarDados();
   }, [id]);
 
-  const carregarDetalhes = async () => {
+  const carregarDados = async () => {
     try {
       setCarregando(true);
-      
-      // 1. Busca dados do evento
       const resEvento = await api.get(`/eventos/${id}`);
       const dadosEvento = resEvento.data;
       setEvento(dadosEvento);
-      setNovoPreco(dadosEvento.preco || '');
+      setNovoPrecoInput(dadosEvento.preco || '');
 
-      // 2. Busca assentos do evento (se for do tipo COM_ASSENTO)
+      // Se o evento for de assentos numerados, carrega os assentos
       if (dadosEvento.tipo === 'COM_ASSENTO') {
-        try {
-          const resAssentos = await api.get(`/eventos/${id}/assentos`);
-          setAssentos(resAssentos.data || []);
-        } catch (errAssentos) {
-          console.error('Erro ao carregar assentos:', errAssentos);
-          setAssentos([]);
-        }
+        const resAssentos = await api.get(`/eventos/${id}/assentos`);
+        setAssentos(resAssentos.data || []);
       }
     } catch (err) {
       console.error('Erro ao carregar evento:', err);
-      alert('Não foi possível carregar as informações do evento.');
+      alert('Erro ao carregar detalhes do evento.');
     } finally {
       setCarregando(false);
     }
   };
 
-  // Alternar seleção de assentos
-  const toggleAssento = (assento) => {
-    if (assento.status === 'OCUPADO') return;
+  // Alterna seleção de assentos numerados
+  const handleToggleAssento = (assento) => {
+    if (assento.status === 'OCUPADO' || assento.status === 'RESERVADO') return;
 
-    if (assentosSelecionados.some(a => a.id === assento.id)) {
-      setAssentosSelecionados(assentosSelecionados.filter(a => a.id !== assento.id));
+    const jaSelecionado = assentosSelecionados.some((a) => a.id === assento.id);
+    if (jaSelecionado) {
+      setAssentosSelecionados(assentosSelecionados.filter((a) => a.id !== assento.id));
     } else {
       setAssentosSelecionados([...assentosSelecionados, assento]);
     }
   };
 
-  // Finalizar Compra de Ingressos
-  const handleFinalizarCompra = async () => {
-    if (!usuario) {
-      alert('Você precisa estar logado para realizar uma compra!');
-      return navigate('/login');
-    }
-
-    if (evento.tipo === 'COM_ASSENTO' && assentosSelecionados.length === 0) {
-      return alert('Selecione ao menos um assento antes de continuar.');
+  // Ações de Gestão do Organizador
+  const handleSalvarPreco = async () => {
+    const valorNum = parseFloat(novoPrecoInput);
+    if (isNaN(valorNum) || valorNum <= 0) {
+      return alert('Informe um preço válido!');
     }
 
     try {
-      setComprando(true);
+      setSalvandoOrganizador(true);
+      await api.put(`/eventos/${id}/preco`, { preco: valorNum });
+      alert('Preço atualizado com sucesso!');
+      carregarDados();
+    } catch (err) {
+      alert(err.response?.data?.mensagem || 'Erro ao atualizar preço.');
+    } finally {
+      setSalvandoOrganizador(false);
+    }
+  };
 
-      const payload = {
-        eventoId: id,
-        assentosIds: assentosSelecionados.map(a => a.id)
-      };
+  const handleReagendarData = async () => {
+    if (!novaDataInput) return alert('Selecione uma nova data e hora.');
 
-      await api.post('/pedidos', payload);
-      alert('🎉 Compra realizada com sucesso! Seu QR Code foi gerado.');
+    try {
+      setSalvandoOrganizador(true);
+      await api.put(`/eventos/${id}/adiar`, { novaData: novaDataInput });
+      alert('Data alterada com sucesso!');
+      carregarDados();
+    } catch (err) {
+      alert(err.response?.data?.mensagem || 'Erro ao reagendar data.');
+    } finally {
+      setSalvandoOrganizador(false);
+    }
+  };
+
+  // Processa a Compra (Pista Livre ou Assentos)
+  const handleComprar = async () => {
+    if (!usuario) {
+      alert('Você precisa estar logado para comprar ingressos.');
+      return navigate('/login');
+    }
+
+    if (evento.status === 'CANCELADO') {
+      return alert('Este evento foi cancelado e não está aceitando novas compras.');
+    }
+
+    try {
+      setProcessando(true);
+      const payload = { eventoId: evento.id };
+
+      if (evento.tipo === 'COM_ASSENTO') {
+        if (assentosSelecionados.length === 0) {
+          return alert('Selecione ao menos um assento.');
+        }
+        payload.assentosIds = assentosSelecionados.map((a) => a.id);
+        payload.quantidade = assentosSelecionados.length;
+      } else {
+        payload.quantidade = quantidade;
+      }
+
+      await api.post('/ingressos/comprar', payload);
+      alert('Ingresso(s) garantido(s) com sucesso!');
       navigate('/meus-ingressos');
     } catch (err) {
       alert(err.response?.data?.mensagem || 'Erro ao processar compra.');
     } finally {
-      setComprando(false);
+      setProcessando(false);
     }
   };
 
-  // ==========================================
-  // FUNÇÕES EXCLUSIVAS DO ORGANIZADOR
-  // ==========================================
-  
-  // 1. Alterar Preço
-  const handleSalvarPreco = async () => {
-    if (!novoPreco || parseFloat(novoPreco) <= 0) {
-      return alert('Informe um preço válido.');
-    }
-    try {
-      setSalvandoPreco(true);
-      await api.put(`/eventos/${id}/preco`, { preco: parseFloat(novoPreco) });
-      alert('✅ Preço do evento atualizado com sucesso!');
-      carregarDetalhes();
-    } catch (err) {
-      alert(err.response?.data?.mensagem || 'Erro ao atualizar o preço.');
-    } finally {
-      setSalvandoPreco(false);
-    }
-  };
-
-  // 2. Adiar / Reagendar Evento
-  const handleAdiarEvento = async () => {
-    if (!novaData) {
-      return alert('Selecione a nova data e horário do evento.');
-    }
-    try {
-      setReagendando(true);
-      await api.put(`/eventos/${id}/adiar`, { novaData });
-      alert('✅ Data do evento alterada com sucesso!');
-      setNovaData('');
-      carregarDetalhes();
-    } catch (err) {
-      alert(err.response?.data?.mensagem || 'Erro ao reagendar evento.');
-    } finally {
-      setReagendando(false);
-    }
-  };
-
-  // 3. Cancelar Evento
-  const handleCancelarEvento = async () => {
-    const confirmacao = window.confirm(
-      '⚠️ ATENÇÃO: Tem certeza que deseja CANCELAR e REMOVER este evento?\nEsta ação não poderá ser desfeita!'
+  if (carregando) {
+    return (
+      <div style={styles.centered}>
+        <p style={styles.loadingText}>Carregando detalhes do evento...</p>
+      </div>
     );
+  }
 
-    if (confirmacao) {
-      try {
-        await api.delete(`/eventos/${id}/cancelar`);
-        alert('⛔ Evento cancelado e removido do catálogo.');
-        navigate('/');
-      } catch (err) {
-        alert(err.response?.data?.mensagem || 'Erro ao cancelar o evento.');
-      }
-    }
-  };
+  if (!evento) {
+    return (
+      <div style={styles.centered}>
+        <p style={styles.loadingText}>Evento não encontrado.</p>
+        <button onClick={() => navigate('/')} style={styles.btnVoltar}>
+          Voltar para o Catálogo
+        </button>
+      </div>
+    );
+  }
 
-  if (carregando) return <div style={{ color: '#fff', textAlign: 'center', padding: '4rem' }}>Carregando sessão...</div>;
-  if (!evento) return <div style={{ color: '#fff', textAlign: 'center', padding: '4rem' }}>Evento não encontrado.</div>;
-
-  const total = assentosSelecionados.length * Number(evento.preco);
+  const isCancelado = evento.status === 'CANCELADO';
+  const isOrganizador = usuario?.papel === 'ORGANIZADOR';
+  const valorUnitario = Number(evento.preco) || 0;
+  const qtdTotal = evento.tipo === 'COM_ASSENTO' ? assentosSelecionados.length : quantidade;
+  const valorTotal = (valorUnitario * qtdTotal).toFixed(2);
 
   return (
     <div style={styles.container}>
-      {/* Botão Voltar */}
-      <button onClick={() => navigate('/')} style={styles.backBtn}>
-        <ArrowLeft size={18} /> Voltar para o Catálogo
+      {/* Botão de Voltar */}
+      <button onClick={() => navigate('/')} style={styles.btnVoltar}>
+        <ArrowLeft size={16} /> Voltar para o Catálogo
       </button>
 
-      <div style={styles.content}>
-        {/* Lado Esquerdo: Banner + Informações + Painel do Organizador */}
-        <div style={styles.leftColumn}>
-          <div style={styles.posterSection}>
-            <img src={evento.imagem_url || evento.imagemUrl} alt={evento.titulo} style={styles.poster} />
-            <h2 style={styles.title}>{evento.titulo}</h2>
-            <p style={styles.info}>
-              <Calendar size={16} color="#e11d48" /> 
-              {new Date(evento.data_evento || evento.dataEvento).toLocaleString('pt-BR')}
-            </p>
-            <p style={styles.info}>
-              <MapPin size={16} color="#e11d48" /> {evento.local}
-            </p>
-            <p style={styles.description}>{evento.descricao}</p>
+      <div style={styles.grid}>
+        {/* LADO ESQUERDO: DETALHES DO EVENTO & PAINEL DO ORGANIZADOR */}
+        <div style={styles.colEsquerda}>
+          {/* Card Principal do Evento */}
+          <div style={styles.cardEvento}>
+            <div style={styles.imageBox}>
+              <img 
+                src={evento.imagem_url || evento.imagemUrl || 'https://via.placeholder.com/500x500?text=Sem+Capa'} 
+                alt={evento.titulo} 
+                style={styles.image}
+              />
+              {isCancelado && (
+                <div style={styles.badgeCancelado}>
+                  <Ban size={14} /> EVENTO CANCELADO
+                </div>
+              )}
+            </div>
+
+            <div style={styles.cardInfo}>
+              <h1 style={styles.titulo}>{evento.titulo}</h1>
+              
+              <div style={styles.infoRow}>
+                <Calendar size={18} color="#e11d48" />
+                <span>{new Date(evento.data_evento || evento.dataEvento).toLocaleString('pt-BR')}</span>
+              </div>
+
+              <div style={styles.infoRow}>
+                <MapPin size={18} color="#e11d48" />
+                <span>{evento.local}</span>
+              </div>
+            </div>
           </div>
 
-          {/* ⚙️ PAINEL DO ORGANIZADOR */}
-          {usuario && usuario.papel === 'ORGANIZADOR' && (
-            <div style={styles.painelOrganizador}>
-              <div style={styles.painelHeader}>
-                <Settings size={20} color="#f59e0b" />
-                <h3 style={styles.painelTitle}>Gestão do Evento (Organizador)</h3>
+          {/* Painel de Gestão do Organizador */}
+          {isOrganizador && (
+            <div style={styles.cardOrganizador}>
+              <div style={styles.organizadorHeader}>
+                <Settings size={18} color="#f59e0b" />
+                <h3 style={styles.organizadorTitle}>Gestão do Evento (Organizador)</h3>
               </div>
 
               {/* Editar Preço */}
-              <div style={styles.controlBox}>
-                <label style={styles.controlLabel}><DollarSign size={15} /> Editar Preço do Ingresso (R$)</label>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  <DollarSign size={14} color="#38bdf8" /> Editar Preço do Ingresso (R$)
+                </label>
                 <div style={styles.inputGroup}>
                   <input
                     type="number"
                     step="0.01"
-                    value={novoPreco}
-                    onChange={(e) => setNovoPreco(e.target.value)}
-                    style={styles.inputControl}
-                    placeholder="Ex: 35.00"
+                    value={novoPrecoInput}
+                    onChange={(e) => setNovoPrecoInput(e.target.value)}
+                    style={styles.input}
+                    disabled={isCancelado || salvandoOrganizador}
                   />
-                  <button onClick={handleSalvarPreco} disabled={salvandoPreco} style={styles.btnSalvar}>
-                    <Check size={16} /> {salvandoPreco ? 'Salvando...' : 'Salvar'}
+                  <button 
+                    onClick={handleSalvarPreco}
+                    disabled={isCancelado || salvandoOrganizador}
+                    style={styles.btnOrganizadorSave}
+                  >
+                    <Check size={16} /> Salvar
                   </button>
                 </div>
               </div>
 
-              {/* Adiar / Reagendar */}
-              <div style={styles.controlBox}>
-                <label style={styles.controlLabel}><Clock size={15} /> Reagendar / Adiar Data</label>
+              {/* Reagendar / Adiar Data */}
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  <Clock size={14} color="#f59e0b" /> Reagendar / Adiar Data
+                </label>
                 <div style={styles.inputGroup}>
                   <input
                     type="datetime-local"
-                    value={novaData}
-                    onChange={(e) => setNovaData(e.target.value)}
-                    style={styles.inputControl}
+                    value={novaDataInput}
+                    onChange={(e) => setNovaDataInput(e.target.value)}
+                    style={styles.input}
+                    disabled={isCancelado || salvandoOrganizador}
                   />
-                  <button onClick={handleAdiarEvento} disabled={reagendando} style={styles.btnSalvar}>
-                    <Check size={16} /> {reagendando ? 'Alterando...' : 'Reagendar'}
+                  <button 
+                    onClick={handleReagendarData}
+                    disabled={isCancelado || salvandoOrganizador}
+                    style={styles.btnOrganizadorReagendar}
+                  >
+                    Reagendar
                   </button>
                 </div>
-              </div>
-
-              {/* Cancelar Evento */}
-              <div style={{ ...styles.controlBox, marginBottom: 0 }}>
-                <label style={styles.controlLabel}>Ação Crítica</label>
-                <button onClick={handleCancelarEvento} style={styles.btnCancelarEvento}>
-                  <Trash2 size={16} /> Cancelar este Evento
-                </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Lado Direito: Mapa de Assentos / Checkout */}
-        <div style={styles.seatsSection}>
-          <h3 style={styles.subTitle}>
-            {evento.tipo === 'COM_ASSENTO' ? '🍿 Selecione seus Assentos' : '🎟️ Garanta seu Ingresso'}
-          </h3>
+        {/* LADO DIREITO: COMPRA / SELEÇÃO (PISTA OU ASSENTOS) */}
+        <div style={styles.cardCompra}>
+          <h2 style={styles.sectionTitle}>
+            <Ticket size={22} color="#e11d48" /> Garanta seu Ingresso
+          </h2>
 
-          {evento.tipo === 'COM_ASSENTO' ? (
-            <>
-              {/* Tela do Cinema */}
-              <div style={styles.screenWrapper}>
-                <div style={styles.screen}>TELA / PALCO</div>
+          {isCancelado ? (
+            <div style={styles.bannerCanceladoBox}>
+              <Ban size={32} color="#ef4444" />
+              <h3>Vendas Encerradas</h3>
+              <p>Este evento foi marcado como cancelado pelo organizador.</p>
+            </div>
+          ) : evento.tipo === 'SEM_ASSENTO' ? (
+            /* CONTEÚDO PARA PISTA LIVRE */
+            <div style={styles.pistaContainer}>
+              <div style={styles.pistaBanner}>
+                <div style={styles.pistaIconBox}>🎫</div>
+                <div>
+                  <h4 style={styles.pistaBannerTitle}>Setor: Pista Livre / Geral</h4>
+                  <p style={styles.pistaBannerSub}>
+                    Esta sessão possui entrada por ordem de chegada (Pista Livre).
+                  </p>
+                </div>
               </div>
 
-              {/* Legenda */}
-              <div style={styles.legend}>
-                <div style={styles.legendItem}><span style={{ ...styles.seatBox, backgroundColor: '#334155' }}></span> Livre</div>
-                <div style={styles.legendItem}><span style={{ ...styles.seatBox, backgroundColor: '#10b981' }}></span> Selecionado</div>
-                <div style={styles.legendItem}><span style={{ ...styles.seatBox, backgroundColor: '#ef4444' }}></span> Ocupado</div>
+              {/* Seletor de Quantidade */}
+              <div style={styles.qtdBox}>
+                <span style={styles.qtdLabel}>Quantidade de Ingressos:</span>
+                <div style={styles.counterGroup}>
+                  <button 
+                    type="button"
+                    onClick={() => setQuantidade((prev) => Math.max(1, prev - 1))}
+                    style={styles.btnCounter}
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <span style={styles.qtdValue}>{quantidade}</span>
+                  <button 
+                    type="button"
+                    onClick={() => setQuantidade((prev) => Math.min(10, prev + 1))}
+                    style={styles.btnCounter}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Resumo e Valor Total */}
+              <div style={styles.resumoBox}>
+                <div style={styles.resumoRow}>
+                  <span>Preço Unitário:</span>
+                  <span>R$ {valorUnitario.toFixed(2)}</span>
+                </div>
+                <div style={styles.resumoRowTotal}>
+                  <span>Valor Total:</span>
+                  <span style={styles.totalValue}>R$ {valorTotal}</span>
+                </div>
+              </div>
+
+              {/* Botão de Finalizar */}
+              <button 
+                onClick={handleComprar}
+                disabled={processando}
+                style={styles.btnComprar}
+              >
+                <ShoppingBag size={18} />
+                {processando ? 'Processando...' : `Garantir ${quantidade} Ingresso(s) • R$ ${valorTotal}`}
+              </button>
+            </div>
+          ) : (
+            /* CONTEÚDO PARA ASSENTOS MARCADOS */
+            <div style={styles.assentosContainer}>
+              <p style={styles.subtext}>Selecione seus assentos no mapa abaixo:</p>
+
+              {/* Legenda dos Assentos */}
+              <div style={styles.legenda}>
+                <div style={styles.itemLegenda}>
+                  <div style={{ ...styles.boxLegenda, backgroundColor: '#334155' }} />
+                  <span>Livre</span>
+                </div>
+                <div style={styles.itemLegenda}>
+                  <div style={{ ...styles.boxLegenda, backgroundColor: '#10b981' }} />
+                  <span>Selecionado</span>
+                </div>
+                <div style={styles.itemLegenda}>
+                  <div style={{ ...styles.boxLegenda, backgroundColor: '#ef4444' }} />
+                  <span>Ocupado</span>
+                </div>
               </div>
 
               {/* Grid de Assentos */}
-              {assentos.length === 0 ? (
-                <div style={styles.emptySeatsAlert}>
-                  Nenhum assento cadastrado para este evento.
-                </div>
-              ) : (
-                <div style={styles.gridAssentos}>
-                  {assentos.map((a) => {
-                    const estaSelecionado = assentosSelecionados.some(s => s.id === a.id);
-                    const estaOcupado = a.status === 'OCUPADO';
+              <div style={styles.gridAssentos}>
+                {assentos.map((a) => {
+                  const isSelecionado = assentosSelecionados.some((item) => item.id === a.id);
+                  const isOcupado = a.status === 'OCUPADO' || a.status === 'RESERVADO';
 
-                    let bg = '#334155'; // Livre
-                    if (estaOcupado) bg = '#ef4444'; // Ocupado
-                    if (estaSelecionado) bg = '#10b981'; // Selecionado
+                  let bg = '#334155';
+                  if (isOcupado) bg = '#ef4444';
+                  else if (isSelecionado) bg = '#10b981';
 
-                    return (
-                      <button
-                        key={a.id}
-                        disabled={estaOcupado}
-                        onClick={() => toggleAssento(a)}
-                        style={{
-                          ...styles.seatBtn,
-                          backgroundColor: bg,
-                          cursor: estaOcupado ? 'not-allowed' : 'pointer',
-                          opacity: estaOcupado ? 0.5 : 1
-                        }}
-                      >
-                        {a.codigo_assento || a.numero}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          ) : (
-            <p style={{ color: '#cbd5e1', marginBottom: '1.5rem' }}>
-              Esta sessão possui entrada por ordem de chegada (Pista Livre).
-            </p>
-          )}
-
-          {/* Resumo e Botão de Compra */}
-          <div style={styles.summaryCard}>
-            <div style={styles.summaryRow}>
-              <span>Qtd. Ingressos:</span>
-              <strong>{evento.tipo === 'COM_ASSENTO' ? assentosSelecionados.length : 1}</strong>
-            </div>
-            {evento.tipo === 'COM_ASSENTO' && assentosSelecionados.length > 0 && (
-              <div style={styles.summaryRow}>
-                <span>Assentos:</span>
-                <strong>{assentosSelecionados.map(a => a.codigo_assento || a.numero).join(', ')}</strong>
+                  return (
+                    <button
+                      key={a.id}
+                      disabled={isOcupado}
+                      onClick={() => handleToggleAssento(a)}
+                      style={{
+                        ...styles.btnAssento,
+                        backgroundColor: bg,
+                        cursor: isOcupado ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {a.numero || a.codigo}
+                    </button>
+                  );
+                })}
               </div>
-            )}
-            <div style={styles.summaryRow}>
-              <span>Valor Total:</span>
-              <strong style={{ fontSize: '1.4rem', color: '#10b981' }}>
-                R$ {evento.tipo === 'COM_ASSENTO' ? total.toFixed(2) : Number(evento.preco).toFixed(2)}
-              </strong>
-            </div>
 
-            <button
-              onClick={handleFinalizarCompra}
-              disabled={comprando || (evento.tipo === 'COM_ASSENTO' && assentos.length === 0)}
-              style={{
-                ...styles.checkoutBtn,
-                opacity: (evento.tipo === 'COM_ASSENTO' && assentos.length === 0) ? 0.5 : 1
-              }}
-            >
-              <Ticket size={18} /> {comprando ? 'Processando...' : 'Confirmar e Gerar QR Code'}
-            </button>
-          </div>
+              {/* Resumo dos Assentos */}
+              <div style={styles.resumoBox}>
+                <div style={styles.resumoRow}>
+                  <span>Qtd. Assentos Selecionados:</span>
+                  <span>{assentosSelecionados.length}</span>
+                </div>
+                <div style={styles.resumoRowTotal}>
+                  <span>Valor Total:</span>
+                  <span style={styles.totalValue}>R$ {valorTotal}</span>
+                </div>
+              </div>
+
+              {/* Botão de Finalizar */}
+              <button 
+                onClick={handleComprar}
+                disabled={processando || assentosSelecionados.length === 0}
+                style={{
+                  ...styles.btnComprar,
+                  opacity: assentosSelecionados.length === 0 ? 0.6 : 1,
+                  cursor: assentosSelecionados.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <ShoppingBag size={18} />
+                {processando ? 'Processando...' : `Confirmar Assentos • R$ ${valorTotal}`}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -338,86 +415,118 @@ export default function EventoDetalhes() {
 
 const styles = {
   container: {
-    maxWidth: '1100px',
+    maxWidth: '1200px',
     margin: '0 auto',
     padding: '2rem 1rem',
+    color: '#fff',
   },
-  backBtn: {
-    backgroundColor: 'transparent',
-    color: '#94a3b8',
-    border: 'none',
+  centered: {
     display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '60vh',
+    gap: '1rem',
+  },
+  loadingText: {
+    color: '#94a3b8',
+    fontSize: '1.1rem',
+  },
+  btnVoltar: {
+    backgroundColor: 'transparent',
+    border: 'none',
+    color: '#94a3b8',
+    display: 'inline-flex',
     alignItems: 'center',
     gap: '0.5rem',
+    fontSize: '0.9rem',
     cursor: 'pointer',
     marginBottom: '1.5rem',
-    fontSize: '0.95rem',
   },
-  content: {
+  grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
     gap: '2rem',
+    alignItems: 'start',
   },
-  leftColumn: {
+  colEsquerda: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
   },
-  posterSection: {
+  cardEvento: {
     backgroundColor: '#1e293b',
-    padding: '1.5rem',
-    borderRadius: '12px',
     border: '1px solid #334155',
+    borderRadius: '12px',
+    overflow: 'hidden',
   },
-  poster: {
+  imageBox: {
+    position: 'relative',
     width: '100%',
     maxHeight: '400px',
+    backgroundColor: '#0f172a',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    maxHeight: '400px',
     objectFit: 'cover',
-    borderRadius: '8px',
-    marginBottom: '1rem',
   },
-  title: {
+  badgeCancelado: {
+    position: 'absolute',
+    top: '12px',
+    right: '12px',
+    backgroundColor: '#ef4444',
     color: '#fff',
-    fontSize: '1.5rem',
-    marginBottom: '0.8rem',
-  },
-  info: {
-    color: '#cbd5e1',
+    padding: '0.4rem 0.8rem',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '0.8rem',
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.9rem',
-    marginBottom: '0.4rem',
+    gap: '0.4rem',
   },
-  description: {
-    color: '#94a3b8',
-    marginTop: '1rem',
-    fontSize: '0.9rem',
-    lineHeight: '1.4',
+  cardInfo: {
+    padding: '1.5rem',
   },
-  painelOrganizador: {
-    backgroundColor: '#0f172a',
+  titulo: {
+    fontSize: '1.6rem',
+    fontWeight: 'bold',
+    marginBottom: '1rem',
+    color: '#fff',
+  },
+  infoRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.6rem',
+    color: '#cbd5e1',
+    fontSize: '0.95rem',
+    marginBottom: '0.6rem',
+  },
+  cardOrganizador: {
+    backgroundColor: '#1e293b',
     border: '1px solid #f59e0b55',
     borderRadius: '12px',
     padding: '1.2rem',
   },
-  painelHeader: {
+  organizadorHeader: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.6rem',
-    marginBottom: '1.2rem',
+    gap: '0.5rem',
+    marginBottom: '1rem',
     borderBottom: '1px solid #334155',
     paddingBottom: '0.6rem',
   },
-  painelTitle: {
+  organizadorTitle: {
     color: '#f59e0b',
-    fontSize: '1.05rem',
+    fontSize: '1rem',
     fontWeight: 'bold',
+    margin: 0,
   },
-  controlBox: {
+  formGroup: {
     marginBottom: '1rem',
   },
-  controlLabel: {
+  label: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.4rem',
@@ -429,139 +538,220 @@ const styles = {
     display: 'flex',
     gap: '0.5rem',
   },
-  inputControl: {
-    flex: 1,
-    padding: '0.6rem 0.8rem',
-    borderRadius: '6px',
+  input: {
+    backgroundColor: '#0f172a',
     border: '1px solid #334155',
-    backgroundColor: '#1e293b',
+    borderRadius: '8px',
+    padding: '0.6rem',
     color: '#fff',
     fontSize: '0.9rem',
+    width: '100%',
     outline: 'none',
   },
-  btnSalvar: {
+  btnOrganizadorSave: {
     backgroundColor: '#2563eb',
     color: '#fff',
     border: 'none',
-    borderRadius: '6px',
-    padding: '0.6rem 1rem',
+    borderRadius: '8px',
+    padding: '0 1rem',
     fontWeight: 'bold',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     gap: '0.3rem',
-    fontSize: '0.85rem',
+    whiteSpace: 'nowrap',
   },
-  btnCancelarEvento: {
-    width: '100%',
-    backgroundColor: '#dc2626',
+  btnOrganizadorReagendar: {
+    backgroundColor: '#2563eb',
     color: '#fff',
     border: 'none',
+    borderRadius: '8px',
+    padding: '0 1rem',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  cardCompra: {
+    backgroundColor: '#1e293b',
+    border: '1px solid #334155',
+    borderRadius: '12px',
+    padding: '1.5rem',
+  },
+  sectionTitle: {
+    fontSize: '1.3rem',
+    fontWeight: 'bold',
+    marginBottom: '1.2rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    color: '#fff',
+  },
+  bannerCanceladoBox: {
+    textAlign: 'center',
+    padding: '2.5rem 1rem',
+    backgroundColor: '#0f172a',
+    borderRadius: '10px',
+    border: '1px solid #ef444455',
+    color: '#cbd5e1',
+  },
+  pistaContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.2rem',
+  },
+  pistaBanner: {
+    backgroundColor: '#0f172a',
+    border: '1px solid #334155',
+    borderRadius: '10px',
+    padding: '1.2rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+  },
+  pistaIconBox: {
+    fontSize: '1.8rem',
+    backgroundColor: '#1e293b',
+    padding: '0.5rem',
+    borderRadius: '8px',
+  },
+  pistaBannerTitle: {
+    color: '#fff',
+    margin: '0 0 0.2rem 0',
+    fontSize: '0.95rem',
+    fontWeight: 'bold',
+  },
+  pistaBannerSub: {
+    color: '#94a3b8',
+    margin: 0,
+    fontSize: '0.85rem',
+  },
+  qtdBox: {
+    backgroundColor: '#0f172a',
+    border: '1px solid #334155',
+    borderRadius: '10px',
+    padding: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  qtdLabel: {
+    color: '#cbd5e1',
+    fontWeight: '500',
+    fontSize: '0.9rem',
+  },
+  counterGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.8rem',
+  },
+  btnCounter: {
+    backgroundColor: '#2563eb',
+    color: '#fff',
+    border: 'none',
+    width: '32px',
+    height: '32px',
     borderRadius: '6px',
-    padding: '0.7rem',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtdValue: {
+    color: '#fff',
+    fontSize: '1.1rem',
+    fontWeight: 'bold',
+    minWidth: '20px',
+    textAlign: 'center',
+  },
+  resumoBox: {
+    backgroundColor: '#0f172a',
+    border: '1px solid #334155',
+    borderRadius: '10px',
+    padding: '1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.6rem',
+  },
+  resumoRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    color: '#94a3b8',
+    fontSize: '0.9rem',
+  },
+  resumoRowTotal: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: '1rem',
+    borderTop: '1px solid #334155',
+    paddingTop: '0.6rem',
+  },
+  totalValue: {
+    color: '#10b981',
+    fontSize: '1.3rem',
+  },
+  btnComprar: {
+    backgroundColor: '#e11d48',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '0.9rem',
+    fontSize: '1rem',
     fontWeight: 'bold',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.5rem',
-    fontSize: '0.9rem',
   },
-  seatsSection: {
-    backgroundColor: '#1e293b',
-    padding: '1.5rem',
-    borderRadius: '12px',
-    border: '1px solid #334155',
+  assentosContainer: {
     display: 'flex',
     flexDirection: 'column',
+    gap: '1.2rem',
   },
-  subTitle: {
-    color: '#fff',
-    fontSize: '1.2rem',
-    marginBottom: '1.5rem',
+  subtext: {
+    color: '#94a3b8',
+    fontSize: '0.9rem',
+    margin: 0,
   },
-  screenWrapper: {
-    textAlign: 'center',
-    marginBottom: '1.5rem',
-  },
-  screen: {
-    backgroundColor: '#38bdf8',
-    color: '#0f172a',
-    padding: '0.3rem',
-    borderRadius: '4px',
-    fontWeight: 'bold',
-    fontSize: '0.8rem',
-    boxShadow: '0 0 15px rgba(56, 189, 248, 0.5)',
-  },
-  legend: {
+  legenda: {
     display: 'flex',
-    justifyContent: 'center',
     gap: '1rem',
-    marginBottom: '1.5rem',
+    justifyContent: 'center',
+    backgroundColor: '#0f172a',
+    padding: '0.6rem',
+    borderRadius: '8px',
   },
-  legendItem: {
-    color: '#cbd5e1',
-    fontSize: '0.8rem',
+  itemLegenda: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.4rem',
+    fontSize: '0.8rem',
+    color: '#cbd5e1',
   },
-  seatBox: {
-    width: '16px',
-    height: '16px',
-    borderRadius: '4px',
-    display: 'inline-block',
-  },
-  emptySeatsAlert: {
-    textAlign: 'center',
-    color: '#94a3b8',
-    padding: '1.5rem',
-    border: '1px dashed #334155',
-    borderRadius: '8px',
-    marginBottom: '1.5rem',
+  boxLegenda: {
+    width: '14px',
+    height: '14px',
+    borderRadius: '3px',
   },
   gridAssentos: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(5, 1fr)',
-    gap: '0.6rem',
-    marginBottom: '2rem',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(45px, 1fr))',
+    gap: '0.5rem',
+    maxHeight: '280px',
+    overflowY: 'auto',
+    padding: '0.5rem',
+    backgroundColor: '#0f172a',
+    borderRadius: '8px',
   },
-  seatBtn: {
-    padding: '0.6rem 0',
-    borderRadius: '6px',
-    border: 'none',
+  btnAssento: {
+    height: '42px',
     color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
     fontWeight: 'bold',
     fontSize: '0.85rem',
-  },
-  summaryCard: {
-    backgroundColor: '#0f172a',
-    padding: '1.2rem',
-    borderRadius: '8px',
-    marginTop: 'auto',
-    border: '1px solid #334155',
-  },
-  summaryRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    color: '#cbd5e1',
-    marginBottom: '0.6rem',
-    fontSize: '0.95rem',
-  },
-  checkoutBtn: {
-    width: '100%',
-    backgroundColor: '#e11d48',
-    color: '#fff',
-    padding: '0.8rem',
-    marginTop: '1rem',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.5rem',
-    fontSize: '1rem',
-    border: 'none',
-    borderRadius: '8px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
   },
 };
