@@ -130,7 +130,7 @@ export default function DetalhesEvento() {
         payload.quantidade = quantidade;
       }
 
-      await api.post('/ingressos/comprar', payload);
+      await api.post('/pedidos', payload);
       alert('Ingresso(s) garantido(s) com sucesso!');
       navigate('/meus-ingressos');
     } catch (err) {

@@ -59,7 +59,7 @@ router.post('/', autenticarToken, async (req, res) => {
         usuarioId,
         eventoId,
         valorTotal,
-        assentosNomes.length > 0 ? assentosNomes.join(', ') : 'Pista Libre',
+        assentosNomes.length > 0 ? assentosNomes.join(', ') : 'Pista Livre',
         qrCodeHash
       ]
     );
