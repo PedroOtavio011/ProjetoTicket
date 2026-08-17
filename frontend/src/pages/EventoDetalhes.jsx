@@ -2,7 +2,17 @@ import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';
-import { Calendar, MapPin, Ticket, ArrowLeft } from 'lucide-react';
+import { 
+  Calendar, 
+  MapPin, 
+  Ticket, 
+  ArrowLeft, 
+  Settings, 
+  DollarSign, 
+  Clock, 
+  Trash2,
+  Check
+} from 'lucide-react';
 
 export default function EventoDetalhes() {
   const { id } = useParams();
@@ -15,6 +25,12 @@ export default function EventoDetalhes() {
   const [carregando, setCarregando] = useState(true);
   const [comprando, setComprando] = useState(false);
 
+  // Estados do Painel do Organizador
+  const [novoPreco, setNovoPreco] = useState('');
+  const [novaData, setNovaData] = useState('');
+  const [salvandoPreco, setSalvandoPreco] = useState(false);
+  const [reagendando, setReagendando] = useState(false);
+
   useEffect(() => {
     carregarDetalhes();
   }, [id]);
@@ -25,10 +41,12 @@ export default function EventoDetalhes() {
       
       // 1. Busca dados do evento
       const resEvento = await api.get(`/eventos/${id}`);
-      setEvento(resEvento.data);
+      const dadosEvento = resEvento.data;
+      setEvento(dadosEvento);
+      setNovoPreco(dadosEvento.preco || '');
 
-      // 2. Busca assentos do evento (com try/catch isolado para resiliência)
-      if (resEvento.data.tipo === 'COM_ASSENTO') {
+      // 2. Busca assentos do evento (se for do tipo COM_ASSENTO)
+      if (dadosEvento.tipo === 'COM_ASSENTO') {
         try {
           const resAssentos = await api.get(`/eventos/${id}/assentos`);
           setAssentos(resAssentos.data || []);
@@ -45,6 +63,7 @@ export default function EventoDetalhes() {
     }
   };
 
+  // Alternar seleção de assentos
   const toggleAssento = (assento) => {
     if (assento.status === 'OCUPADO') return;
 
@@ -55,6 +74,7 @@ export default function EventoDetalhes() {
     }
   };
 
+  // Finalizar Compra de Ingressos
   const handleFinalizarCompra = async () => {
     if (!usuario) {
       alert('Você precisa estar logado para realizar uma compra!');
@@ -68,7 +88,6 @@ export default function EventoDetalhes() {
     try {
       setComprando(true);
 
-      // 💡 Ajuste: enviamos 'id' como String/UUID direto, sem usar Number(id)
       const payload = {
         eventoId: id,
         assentosIds: assentosSelecionados.map(a => a.id)
@@ -81,6 +100,62 @@ export default function EventoDetalhes() {
       alert(err.response?.data?.mensagem || 'Erro ao processar compra.');
     } finally {
       setComprando(false);
+    }
+  };
+
+  // ==========================================
+  // FUNÇÕES EXCLUSIVAS DO ORGANIZADOR
+  // ==========================================
+  
+  // 1. Alterar Preço
+  const handleSalvarPreco = async () => {
+    if (!novoPreco || parseFloat(novoPreco) <= 0) {
+      return alert('Informe um preço válido.');
+    }
+    try {
+      setSalvandoPreco(true);
+      await api.put(`/eventos/${id}/preco`, { preco: parseFloat(novoPreco) });
+      alert('✅ Preço do evento atualizado com sucesso!');
+      carregarDetalhes();
+    } catch (err) {
+      alert(err.response?.data?.mensagem || 'Erro ao atualizar o preço.');
+    } finally {
+      setSalvandoPreco(false);
+    }
+  };
+
+  // 2. Adiar / Reagendar Evento
+  const handleAdiarEvento = async () => {
+    if (!novaData) {
+      return alert('Selecione a nova data e horário do evento.');
+    }
+    try {
+      setReagendando(true);
+      await api.put(`/eventos/${id}/adiar`, { novaData });
+      alert('✅ Data do evento alterada com sucesso!');
+      setNovaData('');
+      carregarDetalhes();
+    } catch (err) {
+      alert(err.response?.data?.mensagem || 'Erro ao reagendar evento.');
+    } finally {
+      setReagendando(false);
+    }
+  };
+
+  // 3. Cancelar Evento
+  const handleCancelarEvento = async () => {
+    const confirmacao = window.confirm(
+      '⚠️ ATENÇÃO: Tem certeza que deseja CANCELAR e REMOVER este evento?\nEsta ação não poderá ser desfeita!'
+    );
+
+    if (confirmacao) {
+      try {
+        await api.delete(`/eventos/${id}/cancelar`);
+        alert('⛔ Evento cancelado e removido do catálogo.');
+        navigate('/');
+      } catch (err) {
+        alert(err.response?.data?.mensagem || 'Erro ao cancelar o evento.');
+      }
     }
   };
 
@@ -97,13 +172,72 @@ export default function EventoDetalhes() {
       </button>
 
       <div style={styles.content}>
-        {/* Lado Esquerdo: Banner do Filme */}
-        <div style={styles.posterSection}>
-          <img src={evento.imagem_url || evento.imagemUrl} alt={evento.titulo} style={styles.poster} />
-          <h2 style={styles.title}>{evento.titulo}</h2>
-          <p style={styles.info}><Calendar size={16} color="#e11d48" /> {new Date(evento.data_evento || evento.dataEvento).toLocaleString('pt-BR')}</p>
-          <p style={styles.info}><MapPin size={16} color="#e11d48" /> {evento.local}</p>
-          <p style={styles.description}>{evento.descricao}</p>
+        {/* Lado Esquerdo: Banner + Informações + Painel do Organizador */}
+        <div style={styles.leftColumn}>
+          <div style={styles.posterSection}>
+            <img src={evento.imagem_url || evento.imagemUrl} alt={evento.titulo} style={styles.poster} />
+            <h2 style={styles.title}>{evento.titulo}</h2>
+            <p style={styles.info}>
+              <Calendar size={16} color="#e11d48" /> 
+              {new Date(evento.data_evento || evento.dataEvento).toLocaleString('pt-BR')}
+            </p>
+            <p style={styles.info}>
+              <MapPin size={16} color="#e11d48" /> {evento.local}
+            </p>
+            <p style={styles.description}>{evento.descricao}</p>
+          </div>
+
+          {/* ⚙️ PAINEL DO ORGANIZADOR */}
+          {usuario && usuario.papel === 'ORGANIZADOR' && (
+            <div style={styles.painelOrganizador}>
+              <div style={styles.painelHeader}>
+                <Settings size={20} color="#f59e0b" />
+                <h3 style={styles.painelTitle}>Gestão do Evento (Organizador)</h3>
+              </div>
+
+              {/* Editar Preço */}
+              <div style={styles.controlBox}>
+                <label style={styles.controlLabel}><DollarSign size={15} /> Editar Preço do Ingresso (R$)</label>
+                <div style={styles.inputGroup}>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={novoPreco}
+                    onChange={(e) => setNovoPreco(e.target.value)}
+                    style={styles.inputControl}
+                    placeholder="Ex: 35.00"
+                  />
+                  <button onClick={handleSalvarPreco} disabled={salvandoPreco} style={styles.btnSalvar}>
+                    <Check size={16} /> {salvandoPreco ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Adiar / Reagendar */}
+              <div style={styles.controlBox}>
+                <label style={styles.controlLabel}><Clock size={15} /> Reagendar / Adiar Data</label>
+                <div style={styles.inputGroup}>
+                  <input
+                    type="datetime-local"
+                    value={novaData}
+                    onChange={(e) => setNovaData(e.target.value)}
+                    style={styles.inputControl}
+                  />
+                  <button onClick={handleAdiarEvento} disabled={reagendando} style={styles.btnSalvar}>
+                    <Check size={16} /> {reagendando ? 'Alterando...' : 'Reagendar'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Cancelar Evento */}
+              <div style={{ ...styles.controlBox, marginBottom: 0 }}>
+                <label style={styles.controlLabel}>Ação Crítica</label>
+                <button onClick={handleCancelarEvento} style={styles.btnCancelarEvento}>
+                  <Trash2 size={16} /> Cancelar este Evento
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Lado Direito: Mapa de Assentos / Checkout */}
@@ -126,9 +260,9 @@ export default function EventoDetalhes() {
                 <div style={styles.legendItem}><span style={{ ...styles.seatBox, backgroundColor: '#ef4444' }}></span> Ocupado</div>
               </div>
 
-              {/* Grid de Assentos ou Mensagem de AVISO */}
+              {/* Grid de Assentos */}
               {assentos.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '1.5rem', border: '1px dashed #334155', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                <div style={styles.emptySeatsAlert}>
                   Nenhum assento cadastrado para este evento.
                 </div>
               ) : (
@@ -153,7 +287,7 @@ export default function EventoDetalhes() {
                           opacity: estaOcupado ? 0.5 : 1
                         }}
                       >
-                        {a.numero}
+                        {a.codigo_assento || a.numero}
                       </button>
                     );
                   })}
@@ -161,7 +295,9 @@ export default function EventoDetalhes() {
               )}
             </>
           ) : (
-            <p style={{ color: '#cbd5e1', marginBottom: '1.5rem' }}>Esta sessão possui entrada por ordem de chegada (Pista Livre).</p>
+            <p style={{ color: '#cbd5e1', marginBottom: '1.5rem' }}>
+              Esta sessão possui entrada por ordem de chegada (Pista Livre).
+            </p>
           )}
 
           {/* Resumo e Botão de Compra */}
@@ -173,7 +309,7 @@ export default function EventoDetalhes() {
             {evento.tipo === 'COM_ASSENTO' && assentosSelecionados.length > 0 && (
               <div style={styles.summaryRow}>
                 <span>Assentos:</span>
-                <strong>{assentosSelecionados.map(a => a.numero).join(', ')}</strong>
+                <strong>{assentosSelecionados.map(a => a.codigo_assento || a.numero).join(', ')}</strong>
               </div>
             )}
             <div style={styles.summaryRow}>
@@ -220,7 +356,12 @@ const styles = {
   content: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-    gap: '2.5rem',
+    gap: '2rem',
+  },
+  leftColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
   },
   posterSection: {
     backgroundColor: '#1e293b',
@@ -253,6 +394,78 @@ const styles = {
     marginTop: '1rem',
     fontSize: '0.9rem',
     lineHeight: '1.4',
+  },
+  painelOrganizador: {
+    backgroundColor: '#0f172a',
+    border: '1px solid #f59e0b55',
+    borderRadius: '12px',
+    padding: '1.2rem',
+  },
+  painelHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.6rem',
+    marginBottom: '1.2rem',
+    borderBottom: '1px solid #334155',
+    paddingBottom: '0.6rem',
+  },
+  painelTitle: {
+    color: '#f59e0b',
+    fontSize: '1.05rem',
+    fontWeight: 'bold',
+  },
+  controlBox: {
+    marginBottom: '1rem',
+  },
+  controlLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    color: '#cbd5e1',
+    fontSize: '0.85rem',
+    marginBottom: '0.4rem',
+  },
+  inputGroup: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  inputControl: {
+    flex: 1,
+    padding: '0.6rem 0.8rem',
+    borderRadius: '6px',
+    border: '1px solid #334155',
+    backgroundColor: '#1e293b',
+    color: '#fff',
+    fontSize: '0.9rem',
+    outline: 'none',
+  },
+  btnSalvar: {
+    backgroundColor: '#2563eb',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '0.6rem 1rem',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+    fontSize: '0.85rem',
+  },
+  btnCancelarEvento: {
+    width: '100%',
+    backgroundColor: '#dc2626',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '0.7rem',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    fontSize: '0.9rem',
   },
   seatsSection: {
     backgroundColor: '#1e293b',
@@ -299,6 +512,14 @@ const styles = {
     borderRadius: '4px',
     display: 'inline-block',
   },
+  emptySeatsAlert: {
+    textAlign: 'center',
+    color: '#94a3b8',
+    padding: '1.5rem',
+    border: '1px dashed #334155',
+    borderRadius: '8px',
+    marginBottom: '1.5rem',
+  },
   gridAssentos: {
     display: 'grid',
     gridTemplateColumns: 'repeat(5, 1fr)',
@@ -338,5 +559,9 @@ const styles = {
     justifyContent: 'center',
     gap: '0.5rem',
     fontSize: '1rem',
+    border: 'none',
+    borderRadius: '8px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
   },
 };

@@ -44,6 +44,51 @@ router.post('/login', async (req, res) => {
   }
 });
 
+
+router.post('/registro', async (req, res) => {
+  const { nome, email, senha, papel } = req.body;
+
+  if (!nome || !email || !senha) {
+    return res.status(400).json({ mensagem: 'Preencha todos os campos obrigatórios.' });
+  }
+
+  try {
+    // 1. Verifica se o e-mail já existe
+    const [usuarios] = await db.execute('SELECT id FROM usuarios WHERE email = ?', [email]);
+    if (usuarios.length > 0) {
+      return res.status(400).json({ mensagem: 'Este e-mail já está cadastrado.' });
+    }
+
+    // 2. Hash da senha
+    const senhaHash = await bcrypt.hash(senha, 10);
+    const novoId = crypto.randomUUID();
+    const tipoPapel = papel === 'ORGANIZADOR' ? 'ORGANIZADOR' : 'CLIENTE';
+
+    // 3. Insere no banco de dados
+    await db.execute(
+      'INSERT INTO usuarios (id, nome, email, senha, papel) VALUES (?, ?, ?, ?, ?)',
+      [novoId, nome, email, senhaHash, tipoPapel]
+    );
+
+    // 4. Gera o token de acesso automático
+    const token = jwt.sign(
+      { id: novoId, nome, email, papel: tipoPapel },
+      process.env.JWT_SECRET || 'chave_secreta_padrao',
+      { expiresIn: '1d' }
+    );
+
+    res.status(201).json({
+      mensagem: 'Usuário cadastrado com sucesso!',
+      token,
+      usuario: { id: novoId, nome, email, papel: tipoPapel }
+    });
+
+  } catch (error) {
+    console.error('Erro no registro de usuário:', error);
+    res.status(500).json({ mensagem: 'Erro interno ao realizar cadastro.' });
+  }
+});''
+
 // POST /api/auth/seed - Cria dados de teste automáticos
 router.post('/seed', async (req, res) => {
   try {

@@ -269,4 +269,58 @@ router.get('/:id/assentos', async (req, res) => {
   }
 });
 
+router.put('/:id/preco', autenticarToken, async (req, res) => {
+  const { id } = req.params;
+  const { preco } = req.body;
+
+  if (!preco || preco <= 0) {
+    return res.status(400).json({ mensagem: 'Preço inválido.' });
+  }
+
+  try {
+    await db.execute('UPDATE eventos SET preco = ? WHERE id = ?', [preco, id]);
+    res.json({ mensagem: 'Preço atualizado com sucesso!' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensagem: 'Erro ao atualizar o preço.' });
+  }
+});
+
+// ==========================================
+// 2. ADIAR EVENTO (MUDAR DATA)
+// PUT /api/eventos/:id/adiar
+// ==========================================
+router.put('/:id/adiar', autenticarToken, async (req, res) => {
+  const { id } = req.params;
+  const { novaData } = req.body;
+
+  if (!novaData) {
+    return res.status(400).json({ mensagem: 'Nova data é obrigatória.' });
+  }
+
+  try {
+    await db.execute('UPDATE eventos SET data_evento = ? WHERE id = ?', [novaData, id]);
+    res.json({ mensagem: 'Evento adiado/reagendado com sucesso!' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensagem: 'Erro ao reagendar o evento.' });
+  }
+});
+
+// ==========================================
+// 3. CANCELAR EVENTO
+// DELETE /api/eventos/:id/cancelar
+// ==========================================
+router.delete('/:id/cancelar', autenticarToken, async (req, res) => {
+ const { id } = req.params;
+
+  try {
+    await db.query("UPDATE eventos SET status = 'CANCELADO' WHERE id = ?", [id]);
+    res.json({ mensagem: 'Evento cancelado com sucesso!' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensagem: 'Erro ao cancelar evento.' });
+  }
+});
+
 module.exports = router;
