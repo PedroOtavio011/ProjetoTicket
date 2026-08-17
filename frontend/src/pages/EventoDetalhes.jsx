@@ -14,7 +14,8 @@ import {
   Ban, 
   Check, 
   Settings,
-  ShoppingBag
+  ShoppingBag,
+  CreditCard
 } from 'lucide-react';
 
 export default function DetalhesEvento() {
@@ -28,6 +29,9 @@ export default function DetalhesEvento() {
   const [quantidade, setQuantidade] = useState(1);
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
+  
+  // 💳 Estado para simulação de status de pagamento
+  const [statusSimulacao, setStatusSimulacao] = useState('APROVADO'); // 'APROVADO', 'SEM_LIMITE', 'NAO_AUTORIZADO'
 
   // Estados para o Painel do Organizador
   const [novoPrecoInput, setNovoPrecoInput] = useState('');
@@ -118,7 +122,10 @@ export default function DetalhesEvento() {
 
     try {
       setProcessando(true);
-      const payload = { eventoId: evento.id };
+      const payload = { 
+        eventoId: evento.id,
+        statusPagamentoSimulado: statusSimulacao
+      };
 
       if (evento.tipo === 'COM_ASSENTO') {
         if (assentosSelecionados.length === 0) {
@@ -130,11 +137,14 @@ export default function DetalhesEvento() {
         payload.quantidade = quantidade;
       }
 
-      await api.post('/pedidos', payload);
-      alert('Ingresso(s) garantido(s) com sucesso!');
+      const response = await api.post('/pedidos', payload);
+      
+      alert(response.data.mensagem || 'Ingresso(s) garantido(s) com sucesso!');
       navigate('/meus-ingressos');
+
     } catch (err) {
-      alert(err.response?.data?.mensagem || 'Erro ao processar compra.');
+      const msgErro = err.response?.data?.mensagem || 'Erro ao processar pagamento.';
+      alert(`❌ FALHA NO PAGAMENTO: ${msgErro}`);
     } finally {
       setProcessando(false);
     }
@@ -275,39 +285,108 @@ export default function DetalhesEvento() {
               <h3>Vendas Encerradas</h3>
               <p>Este evento foi marcado como cancelado pelo organizador.</p>
             </div>
-          ) : evento.tipo === 'SEM_ASSENTO' ? (
-            /* CONTEÚDO PARA PISTA LIVRE */
-            <div style={styles.pistaContainer}>
-              <div style={styles.pistaBanner}>
-                <div style={styles.pistaIconBox}>🎫</div>
-                <div>
-                  <h4 style={styles.pistaBannerTitle}>Setor: Pista Livre / Geral</h4>
-                  <p style={styles.pistaBannerSub}>
-                    Esta sessão possui entrada por ordem de chegada (Pista Livre).
-                  </p>
-                </div>
-              </div>
+          ) : (
+            <div style={styles.compraWrapper}>
+              {evento.tipo === 'SEM_ASSENTO' ? (
+                /* CONTEÚDO PARA PISTA LIVRE */
+                <div style={styles.pistaContainer}>
+                  <div style={styles.pistaBanner}>
+                    <div style={styles.pistaIconBox}>🎫</div>
+                    <div>
+                      <h4 style={styles.pistaBannerTitle}>Setor: Pista / Geral</h4>
+                      <p style={styles.pistaBannerSub}>
+                        Entrada por ordem de chegada no setor principal.
+                      </p>
+                    </div>
+                  </div>
 
-              {/* Seletor de Quantidade */}
-              <div style={styles.qtdBox}>
-                <span style={styles.qtdLabel}>Quantidade de Ingressos:</span>
-                <div style={styles.counterGroup}>
-                  <button 
-                    type="button"
-                    onClick={() => setQuantidade((prev) => Math.max(1, prev - 1))}
-                    style={styles.btnCounter}
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <span style={styles.qtdValue}>{quantidade}</span>
-                  <button 
-                    type="button"
-                    onClick={() => setQuantidade((prev) => Math.min(10, prev + 1))}
-                    style={styles.btnCounter}
-                  >
-                    <Plus size={16} />
-                  </button>
+                  {/* Seletor de Quantidade */}
+                  <div style={styles.qtdBox}>
+                    <span style={styles.qtdLabel}>Quantidade de Ingressos:</span>
+                    <div style={styles.counterGroup}>
+                      <button 
+                        type="button"
+                        onClick={() => setQuantidade((prev) => Math.max(1, prev - 1))}
+                        style={styles.btnCounter}
+                      >
+                        <Minus size={16} />
+                      </button>
+                      <span style={styles.qtdValue}>{quantidade}</span>
+                      <button 
+                        type="button"
+                        onClick={() => setQuantidade((prev) => Math.min(10, prev + 1))}
+                        style={styles.btnCounter}
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              ) : (
+                /* CONTEÚDO PARA ASSENTOS MARCADOS */
+                <div style={styles.assentosContainer}>
+                  <p style={styles.subtext}>Selecione seus assentos no mapa abaixo:</p>
+
+                  {/* Legenda dos Assentos */}
+                  <div style={styles.legenda}>
+                    <div style={styles.itemLegenda}>
+                      <div style={{ ...styles.boxLegenda, backgroundColor: '#334155' }} />
+                      <span>Livre</span>
+                    </div>
+                    <div style={styles.itemLegenda}>
+                      <div style={{ ...styles.boxLegenda, backgroundColor: '#10b981' }} />
+                      <span>Selecionado</span>
+                    </div>
+                    <div style={styles.itemLegenda}>
+                      <div style={{ ...styles.boxLegenda, backgroundColor: '#ef4444' }} />
+                      <span>Ocupado</span>
+                    </div>
+                  </div>
+
+                  {/* Grid de Assentos */}
+                  <div style={styles.gridAssentos}>
+                    {assentos.map((a) => {
+                      const isSelecionado = assentosSelecionados.some((item) => item.id === a.id);
+                      const isOcupado = a.status === 'OCUPADO' || a.status === 'RESERVADO';
+
+                      let bg = '#334155';
+                      if (isOcupado) bg = '#ef4444';
+                      else if (isSelecionado) bg = '#10b981';
+
+                      return (
+                        <button
+                          key={a.id}
+                          disabled={isOcupado}
+                          onClick={() => handleToggleAssento(a)}
+                          style={{
+                            ...styles.btnAssento,
+                            backgroundColor: bg,
+                            cursor: isOcupado ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {a.numero || a.codigo}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 💳 SELETOR DE SIMULAÇÃO DE PAGAMENTO */}
+              <div style={styles.simulacaoBox}>
+                <label style={styles.simulacaoLabel}>
+                  <CreditCard size={16} color="#38bdf8" />
+                  Simulação de Gateway de Pagamento:
+                </label>
+                <select
+                  value={statusSimulacao}
+                  onChange={(e) => setStatusSimulacao(e.target.value)}
+                  style={styles.simulacaoSelect}
+                >
+                  <option value="APROVADO">🟢 Cartão Aprovado (Sucesso)</option>
+                  <option value="SEM_LIMITE">🟡 Cartão Sem Limite (Recusado)</option>
+                  <option value="NAO_AUTORIZADO">🔴 Transação Não Autorizada (Recusado)</option>
+                </select>
               </div>
 
               {/* Resumo e Valor Total */}
@@ -316,75 +395,9 @@ export default function DetalhesEvento() {
                   <span>Preço Unitário:</span>
                   <span>R$ {valorUnitario.toFixed(2)}</span>
                 </div>
-                <div style={styles.resumoRowTotal}>
-                  <span>Valor Total:</span>
-                  <span style={styles.totalValue}>R$ {valorTotal}</span>
-                </div>
-              </div>
-
-              {/* Botão de Finalizar */}
-              <button 
-                onClick={handleComprar}
-                disabled={processando}
-                style={styles.btnComprar}
-              >
-                <ShoppingBag size={18} />
-                {processando ? 'Processando...' : `Garantir ${quantidade} Ingresso(s) • R$ ${valorTotal}`}
-              </button>
-            </div>
-          ) : (
-            /* CONTEÚDO PARA ASSENTOS MARCADOS */
-            <div style={styles.assentosContainer}>
-              <p style={styles.subtext}>Selecione seus assentos no mapa abaixo:</p>
-
-              {/* Legenda dos Assentos */}
-              <div style={styles.legenda}>
-                <div style={styles.itemLegenda}>
-                  <div style={{ ...styles.boxLegenda, backgroundColor: '#334155' }} />
-                  <span>Livre</span>
-                </div>
-                <div style={styles.itemLegenda}>
-                  <div style={{ ...styles.boxLegenda, backgroundColor: '#10b981' }} />
-                  <span>Selecionado</span>
-                </div>
-                <div style={styles.itemLegenda}>
-                  <div style={{ ...styles.boxLegenda, backgroundColor: '#ef4444' }} />
-                  <span>Ocupado</span>
-                </div>
-              </div>
-
-              {/* Grid de Assentos */}
-              <div style={styles.gridAssentos}>
-                {assentos.map((a) => {
-                  const isSelecionado = assentosSelecionados.some((item) => item.id === a.id);
-                  const isOcupado = a.status === 'OCUPADO' || a.status === 'RESERVADO';
-
-                  let bg = '#334155';
-                  if (isOcupado) bg = '#ef4444';
-                  else if (isSelecionado) bg = '#10b981';
-
-                  return (
-                    <button
-                      key={a.id}
-                      disabled={isOcupado}
-                      onClick={() => handleToggleAssento(a)}
-                      style={{
-                        ...styles.btnAssento,
-                        backgroundColor: bg,
-                        cursor: isOcupado ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {a.numero || a.codigo}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Resumo dos Assentos */}
-              <div style={styles.resumoBox}>
                 <div style={styles.resumoRow}>
-                  <span>Qtd. Assentos Selecionados:</span>
-                  <span>{assentosSelecionados.length}</span>
+                  <span>Ingressos/Assentos:</span>
+                  <span>{qtdTotal}</span>
                 </div>
                 <div style={styles.resumoRowTotal}>
                   <span>Valor Total:</span>
@@ -395,15 +408,15 @@ export default function DetalhesEvento() {
               {/* Botão de Finalizar */}
               <button 
                 onClick={handleComprar}
-                disabled={processando || assentosSelecionados.length === 0}
+                disabled={processando || (evento.tipo === 'COM_ASSENTO' && assentosSelecionados.length === 0)}
                 style={{
                   ...styles.btnComprar,
-                  opacity: assentosSelecionados.length === 0 ? 0.6 : 1,
-                  cursor: assentosSelecionados.length === 0 ? 'not-allowed' : 'pointer'
+                  opacity: (evento.tipo === 'COM_ASSENTO' && assentosSelecionados.length === 0) ? 0.6 : 1,
+                  cursor: (evento.tipo === 'COM_ASSENTO' && assentosSelecionados.length === 0) ? 'not-allowed' : 'pointer'
                 }}
               >
                 <ShoppingBag size={18} />
-                {processando ? 'Processando...' : `Confirmar Assentos • R$ ${valorTotal}`}
+                {processando ? 'Processando...' : `Confirmar e Pagar • R$ ${valorTotal}`}
               </button>
             </div>
           )}
@@ -594,6 +607,11 @@ const styles = {
     border: '1px solid #ef444455',
     color: '#cbd5e1',
   },
+  compraWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.2rem',
+  },
   pistaContainer: {
     display: 'flex',
     flexDirection: 'column',
@@ -663,49 +681,6 @@ const styles = {
     minWidth: '20px',
     textAlign: 'center',
   },
-  resumoBox: {
-    backgroundColor: '#0f172a',
-    border: '1px solid #334155',
-    borderRadius: '10px',
-    padding: '1rem',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.6rem',
-  },
-  resumoRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    color: '#94a3b8',
-    fontSize: '0.9rem',
-  },
-  resumoRowTotal: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: '1rem',
-    borderTop: '1px solid #334155',
-    paddingTop: '0.6rem',
-  },
-  totalValue: {
-    color: '#10b981',
-    fontSize: '1.3rem',
-  },
-  btnComprar: {
-    backgroundColor: '#e11d48',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '0.9rem',
-    fontSize: '1rem',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.5rem',
-  },
   assentosContainer: {
     display: 'flex',
     flexDirection: 'column',
@@ -753,5 +728,75 @@ const styles = {
     borderRadius: '6px',
     fontWeight: 'bold',
     fontSize: '0.85rem',
+  },
+  simulacaoBox: {
+    backgroundColor: '#0f172a',
+    border: '1px solid #0284c7',
+    borderRadius: '10px',
+    padding: '0.8rem 1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  simulacaoLabel: {
+    color: '#38bdf8',
+    fontSize: '0.85rem',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+  },
+  simulacaoSelect: {
+    backgroundColor: '#1e293b',
+    border: '1px solid #334155',
+    color: '#fff',
+    padding: '0.5rem',
+    borderRadius: '6px',
+    outline: 'none',
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+  },
+  resumoBox: {
+    backgroundColor: '#0f172a',
+    border: '1px solid #334155',
+    borderRadius: '10px',
+    padding: '1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.6rem',
+  },
+  resumoRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    color: '#94a3b8',
+    fontSize: '0.9rem',
+  },
+  resumoRowTotal: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: '1rem',
+    borderTop: '1px solid #334155',
+    paddingTop: '0.6rem',
+  },
+  totalValue: {
+    color: '#10b981',
+    fontSize: '1.3rem',
+  },
+  btnComprar: {
+    backgroundColor: '#e11d48',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '0.9rem',
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
   },
 };
