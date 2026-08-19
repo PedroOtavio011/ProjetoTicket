@@ -4,10 +4,10 @@ const crypto = require('crypto');
 const db = require('../db');
 const { autenticarToken, autorizarPapel } = require('../middlewares/authMiddleware');
 
-// ==========================================
-// 1. INTEGRAÇÃO COM A API EXTERNA (TMDb - Filmes)
+
+// INTEGRAÇÃO COM A API EXTERNA (TMDb - Filmes)
 // GET /api/eventos/tmdb/buscar?query=Batman
-// ==========================================
+
 router.get('/tmdb/buscar', autenticarToken, autorizarPapel('ORGANIZADOR'), async (req, res) => {
   const { query } = req.query;
   const apiKey = process.env.TMDB_API_KEY;
@@ -60,10 +60,8 @@ router.get('/tmdb/buscar', autenticarToken, autorizarPapel('ORGANIZADOR'), async
   }
 });
 
-// ==========================================
-// 2. CRIAÇÃO DE EVENTO (Apenas ORGANIZADOR)
+// CRIAÇÃO DE EVENTO (Apenas ORGANIZADOR)
 // POST /api/eventos
-// ==========================================
 router.post('/', autenticarToken, autorizarPapel('ORGANIZADOR'), async (req, res) => {
   const {
     titulo,
@@ -149,10 +147,8 @@ router.post('/', autenticarToken, autorizarPapel('ORGANIZADOR'), async (req, res
   }
 });
 
-// ==========================================
-// 3. LISTAGEM DE EVENTOS (Público)
+// LISTAGEM DE EVENTOS (Público)
 // GET /api/eventos
-// ==========================================
 router.get('/', async (req, res) => {
   try {
     const [rows] = await db.execute(
@@ -169,10 +165,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ==========================================
 // 4. DETALHES DO EVENTO
 // GET /api/eventos/:id
-// ==========================================
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -207,10 +201,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ==========================================
 // 5. MAPA DE ASSENTOS DO EVENTO (Com Auto-Geração para eventos antigos)
 // GET /api/eventos/:id/assentos
-// ==========================================
 router.get('/:id/assentos', async (req, res) => {
   const { id } = req.params;
 
@@ -286,10 +278,8 @@ router.put('/:id/preco', autenticarToken, async (req, res) => {
   }
 });
 
-// ==========================================
-// 2. ADIAR EVENTO (MUDAR DATA)
+// ADIAR EVENTO (MUDAR DATA)
 // PUT /api/eventos/:id/adiar
-// ==========================================
 router.put('/:id/adiar', autenticarToken, async (req, res) => {
   const { id } = req.params;
   const { novaData } = req.body;
@@ -307,10 +297,8 @@ router.put('/:id/adiar', autenticarToken, async (req, res) => {
   }
 });
 
-// ==========================================
-// 3. CANCELAR EVENTO
+// CANCELAR EVENTO
 // DELETE /api/eventos/:id/cancelar
-// ==========================================
 router.delete('/:id/cancelar', autenticarToken, async (req, res) => {
  const { id } = req.params;
 

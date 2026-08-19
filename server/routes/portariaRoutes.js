@@ -3,10 +3,10 @@ const router = express.Router();
 const db = require('../db');
 const { autenticarToken } = require('../middlewares/authMiddleware');
 
-// ==========================================
+
 // VALIDAR / LER QR CODE NA PORTARIA
 // POST /api/portaria/validar
-// ==========================================
+
 router.post('/validar', autenticarToken, async (req, res) => {
   // Opcional: Garante que apenas PORTARIA ou ORGANIZADOR possam validar
   if (req.usuario && !['PORTARIA', 'ORGANIZADOR'].includes(req.usuario.papel)) {

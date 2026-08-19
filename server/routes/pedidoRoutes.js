@@ -4,10 +4,10 @@ const crypto = require('crypto');
 const db = require('../db');
 const { autenticarToken } = require('../middlewares/authMiddleware');
 
-// ==========================================
-// 1. CRIAR PEDIDO / COMPRAR INGRESSO
+
+// CRIAR PEDIDO / COMPRAR INGRESSO
 // POST /api/pedidos
-// ==========================================
+
 router.post('/', autenticarToken, async (req, res) => {
   const { eventoId, assentosIds, statusPagamentoSimulado } = req.body;
   const usuarioId = req.usuario?.id || req.usuario?.cliente_id || req.cliente?.id;
@@ -88,10 +88,10 @@ router.post('/', autenticarToken, async (req, res) => {
   }
 });
 
-// ==========================================
-// 2. LISTAR MEUS INGRESSOS
+
+// LISTAR MEUS INGRESSOS
 // GET /api/pedidos
-// ==========================================
+
 router.get('/', autenticarToken, async (req, res) => {
   const usuarioId = req.usuario?.id || req.usuario?.cliente_id || req.cliente?.id;
 
@@ -150,10 +150,10 @@ router.get('/', autenticarToken, async (req, res) => {
   }
 });
 
-// ==========================================
-// 3. GERAR LINK TEMPORÁRIO DE TRANSFERÊNCIA
+
+// GERAR LINK TEMPORÁRIO DE TRANSFERÊNCIA
 // POST /api/pedidos/gerar-link-transferencia
-// ==========================================
+
 router.post('/gerar-link-transferencia', autenticarToken, async (req, res) => {
   const { ticketId } = req.body;
   const usuarioId = req.usuario?.id || req.usuario?.cliente_id || req.cliente?.id;
@@ -205,10 +205,10 @@ router.post('/gerar-link-transferencia', autenticarToken, async (req, res) => {
   }
 });
 
-// ==========================================
-// 4. RESGATAR INGRESSO VIA TOKEN TEMPORÁRIO
+
+// RESGATAR INGRESSO VIA TOKEN TEMPORÁRIO
 // POST /api/pedidos/transferir
-// ==========================================
+
 router.post('/transferir', autenticarToken, async (req, res) => {
   const { codigo } = req.body;
   const novoClienteId = req.usuario?.id || req.usuario?.cliente_id || req.cliente?.id;
