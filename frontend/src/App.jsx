@@ -7,6 +7,7 @@ import Home from './pages/Home';
 import EventoDetalhes from './pages/EventoDetalhes';
 import MeusIngressos from './pages/MeusIngressos';
 import Portaria from './pages/Portaria';
+import IngressoCompartilhado from './pages/IngressoCompartilhado';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/evento/:id" element={<EventoDetalhes />} />
           <Route path="/meus-ingressos" element={<MeusIngressos />} />
           <Route path="/portaria" element={<Portaria />} />
+          <Route path="/ingresso/compartilhado/:codigo" element={<IngressoCompartilhado />} />
         </Routes>
       </Router>
     </AuthProvider>
