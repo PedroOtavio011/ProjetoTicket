@@ -10,15 +10,18 @@ import {
   Share2, 
   Check, 
   Download, 
-  Link as LinkIcon 
+  Link as LinkIcon,
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 
 export default function MeusIngressos() {
   const [pedidos, setPedidos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [copiadoId, setCopiadoId] = useState(null);
+  const [gerandoLink, setGerandoLink] = useState(null);
   
-  // 📥 Estado para o formulário de resgate
+  // Estado para o formulário de resgate
   const [linkInput, setLinkInput] = useState('');
   const [processandoResgate, setProcessandoResgate] = useState(false);
 
@@ -28,7 +31,6 @@ export default function MeusIngressos() {
     carregarMeusIngressos();
   }, []);
 
-  // 🔄 Busca os ingressos do usuário logado
   const carregarMeusIngressos = async () => {
     try {
       setCarregando(true);
@@ -41,49 +43,57 @@ export default function MeusIngressos() {
     }
   };
 
-  // 🌐 Gerar e copiar o link DINÂMICO de compartilhamento (Pessoa X)
-  const handleCompartilhar = (codigoIdentificador) => {
-    // window.location.origin pega automaticamente o protocolo + domínio + porta atual
-    const linkDinamico = `${window.location.origin}/ingresso/compartilhado/${codigoIdentificador}`;
-    
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(linkDinamico);
-    } else {
-      // Fallback para navegadores sem suporte direto à Clipboard API
-      const input = document.createElement('input');
-      input.value = linkDinamico;
-      document.body.appendChild(input);
-      input.select();
-      document.execCommand('copy');
-      document.body.removeChild(input);
-    }
+  // 🛡️ Solicita ao backend um token dinâmico e temporário (Válido por 24h)
+  const handleCompartilhar = async (ticketId) => {
+    try {
+      setGerandoLink(ticketId);
 
-    setCopiadoId(codigoIdentificador);
-    setTimeout(() => setCopiadoId(null), 3000);
+      // Requisita token seguro de uso único
+      const res = await api.post('/pedidos/gerar-link-transferencia', { ticketId });
+      const { tokenTransferencia } = res.data;
+
+      const linkDinamico = `${window.location.origin}/ingresso/resgatar/${tokenTransferencia}`;
+
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(linkDinamico);
+      } else {
+        const input = document.createElement('input');
+        input.value = linkDinamico;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      }
+
+      setCopiadoId(ticketId);
+      setTimeout(() => setCopiadoId(null), 4000);
+
+    } catch (err) {
+      const msg = err.response?.data?.mensagem || 'Erro ao gerar link de transferência.';
+      alert(`❌ ${msg}`);
+    } finally {
+      setGerandoLink(null);
+    }
   };
 
-  // 📥 Resgatar/Transferir ingresso (Pessoa Y)
+  // 📥 Resgatar/Transferir ingresso
   const handleResgatarIngresso = async (e) => {
     e.preventDefault();
     if (!linkInput.trim()) {
-      return alert('Por favor, cole o link ou o código do ingresso.');
+      return alert('Por favor, cole o link ou o código de transferência.');
     }
 
     try {
       setProcessandoResgate(true);
 
-      // Limpa a entrada: se a pessoa colou a URL inteira, pega apenas a chave no final
       const codigoLimpo = linkInput.trim().split('/').pop();
 
-      // Chamada para a rota no backend
       const res = await api.post('/pedidos/transferir', { 
         codigo: codigoLimpo 
       });
 
       alert(res.data.mensagem || '🎉 Ingresso resgatado com sucesso!');
       setLinkInput('');
-      
-      // Atualiza a lista para o novo ingresso aparecer imediatamente
       carregarMeusIngressos();
 
     } catch (err) {
@@ -98,7 +108,7 @@ export default function MeusIngressos() {
     return (
       <div style={styles.loadingContainer}>
         <div style={styles.spinner} />
-        <p style={{ color: '#94a3b8' }}>Carregando seus ingressos...</p>
+        <p style={{ color: '#94a3b8' }}>Carregando seus ingressos seguros...</p>
       </div>
     );
   }
@@ -109,27 +119,29 @@ export default function MeusIngressos() {
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>🎟️ Meus Ingressos</h1>
-          <p style={styles.subtitle}>Apresente na entrada do evento ou compartilhe/resgate ingressos com amigos.</p>
+          <p style={styles.subtitle}>
+            Apresente na entrada do evento ou envie um link de transferência seguro de uso único.
+          </p>
         </div>
         <button onClick={() => navigate('/')} style={styles.backBtn}>
           <ArrowLeft size={18} /> Explorar mais eventos
         </button>
       </div>
 
-      {/* 📥 Painel Dinâmico de Resgate de Ingresso */}
+      {/* Painel de Resgate */}
       <div style={styles.resgateCard}>
         <div style={styles.resgateHeader}>
           <LinkIcon size={20} color="#38bdf8" />
-          <h3 style={styles.resgateTitle}>Resgatar / Receber Ingresso</h3>
+          <h3 style={styles.resgateTitle}>Resgatar Ingresso Recebido</h3>
         </div>
         <p style={styles.resgateSub}>
-          Recebeu um ingresso? Cole o link ou o código abaixo para transferi-lo para a sua conta:
+          Recebeu um link de transferência? Cole-o abaixo para mover o ingresso para sua conta de forma segura:
         </p>
 
         <form onSubmit={handleResgatarIngresso} style={styles.resgateForm}>
           <input
             type="text"
-            placeholder="Cole o link ou código do ingresso aqui..."
+            placeholder="Cole o link ou token de transferência aqui..."
             value={linkInput}
             onChange={(e) => setLinkInput(e.target.value)}
             style={styles.resgateInput}
@@ -140,7 +152,7 @@ export default function MeusIngressos() {
             style={styles.btnResgatar}
           >
             <Download size={16} />
-            {processandoResgate ? 'Resgatando...' : 'Resgatar Ingresso'}
+            {processandoResgate ? 'Processando...' : 'Resgatar Ingresso'}
           </button>
         </form>
       </div>
@@ -162,30 +174,31 @@ export default function MeusIngressos() {
       ) : (
         <div style={styles.grid}>
           {pedidos.map((p) => {
-            // Mapeia o código único considerando os diferentes nomes de colunas possíveis do seu banco
-            const codigoIdentificador = p.token_compartilhamento || p.token || p.qr_code_hash || p.qr_code || p.codigo_qr || p.id;
+            const codigoIdentificador = p.qr_code_hash || p.qr_code || p.id;
             
+            // Usando API externa apenas como fallback visual sem vazar dados críticos do usuário
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(codigoIdentificador)}`;
-            const isCopiado = copiadoId === codigoIdentificador;
+            const isCopiado = copiadoId === p.id;
+            const isGerando = gerandoLink === p.id;
 
             return (
               <div key={p.id} style={styles.ticketCard}>
-                {/* Badge de Status */}
+                {/* Badge de Status Seguro */}
                 <div style={styles.statusBadge}>
-                  <CheckCircle2 size={14} color="#10b981" />
-                  <span>{p.status || 'CONFIRMADO'}</span>
+                  <ShieldCheck size={14} color="#10b981" />
+                  <span>{p.status || 'TICKET VALIDADE OK'}</span>
                 </div>
 
                 <div style={styles.cardContent}>
                   {/* Detalhes do Evento */}
                   <div style={styles.infoCol}>
-                    <h2 style={styles.eventoTitulo}>{p.titulo || p.evento_titulo || p.eventoTitulo || 'Sessão do Evento'}</h2>
+                    <h2 style={styles.eventoTitulo}>{p.titulo || 'Sessão do Evento'}</h2>
                     
                     <p style={styles.infoText}>
                       <Calendar size={16} color="#e11d48" /> 
                       <span>
-                        {(p.data_evento || p.dataEvento) 
-                          ? new Date(p.data_evento || p.dataEvento).toLocaleString('pt-BR') 
+                        {p.data_evento 
+                          ? new Date(p.data_evento).toLocaleString('pt-BR') 
                           : 'Data a confirmar'}
                       </span>
                     </p>
@@ -195,13 +208,11 @@ export default function MeusIngressos() {
                       <span>{p.local || 'Local não informado'}</span>
                     </p>
 
-                    {(p.assentos || p.assento_id || p.assento) && (
+                    {p.assentos && (
                       <div style={styles.assentosBox}>
                         <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Assento(s) / Setor:</span>
                         <strong style={{ color: '#38bdf8', fontSize: '0.95rem', marginLeft: '0.4rem' }}>
-                          {Array.isArray(p.assentos) 
-                            ? p.assentos.join(', ') 
-                            : (p.assentos || p.assento_id || p.assento)}
+                          {Array.isArray(p.assentos) ? p.assentos.join(', ') : p.assentos}
                         </strong>
                       </div>
                     )}
@@ -209,29 +220,36 @@ export default function MeusIngressos() {
                     <div style={styles.priceRow}>
                       <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Valor:</span>
                       <strong style={{ color: '#10b981', fontSize: '1.1rem' }}>
-                        R$ {Number(p.valor_total || p.total || p.preco || 0).toFixed(2)}
+                        R$ {Number(p.valor_total || 0).toFixed(2)}
                       </strong>
                     </div>
                   </div>
 
-                  {/* QR Code & Botão Dinâmico de Compartilhamento */}
+                  {/* QR Code de Entrada & Botão Seguro */}
                   <div style={styles.qrCol}>
                     <div style={styles.qrWrapper}>
                       <img src={qrUrl} alt="QR Code Ingresso" style={styles.qrImage} />
                     </div>
-                    <span style={styles.qrCodeText}>CÓD: {String(codigoIdentificador).substring(0, 12).toUpperCase()}</span>
+                    <span style={styles.qrCodeText}>
+                      HASH: {String(codigoIdentificador).substring(0, 12).toUpperCase()}
+                    </span>
 
                     <button
-                      onClick={() => handleCompartilhar(codigoIdentificador)}
+                      onClick={() => handleCompartilhar(p.id)}
+                      disabled={isGerando}
                       style={isCopiado ? styles.btnShareSuccess : styles.btnShare}
                     >
-                      {isCopiado ? (
+                      {isGerando ? (
                         <>
-                          <Check size={16} /> Link Copiado!
+                          <Loader2 size={16} className="animate-spin" /> Gerando Link Seguro...
+                        </>
+                      ) : isCopiado ? (
+                        <>
+                          <Check size={16} /> Link Seguro Copiado! (24h)
                         </>
                       ) : (
                         <>
-                          <Share2 size={16} /> Compartilhar Link
+                          <Share2 size={16} /> Gerar Link de Transferência
                         </>
                       )}
                     </button>
@@ -300,7 +318,6 @@ const styles = {
     fontSize: '0.9rem',
     fontWeight: '500',
   },
-  /* CARD DE RESGATE */
   resgateCard: {
     backgroundColor: '#1e293b',
     border: '1px solid #0284c755',

@@ -16,17 +16,12 @@ router.post('/', autenticarToken, async (req, res) => {
     return res.status(400).json({ mensagem: 'O ID do evento é obrigatório.' });
   }
 
-  // 💳 SIMULAÇÃO DE GATEWAY DE PAGAMENTO
   if (statusPagamentoSimulado === 'NAO_AUTORIZADO') {
-    return res.status(402).json({
-      mensagem: 'Transação recusada: Cartão não autorizado pela operadora.'
-    });
+    return res.status(402).json({ mensagem: 'Transação recusada: Cartão não autorizado.' });
   }
 
   if (statusPagamentoSimulado === 'SEM_LIMITE') {
-    return res.status(402).json({
-      mensagem: 'Transação recusada: Saldo ou limite insuficiente.'
-    });
+    return res.status(402).json({ mensagem: 'Transação recusada: Saldo/limite insuficiente.' });
   }
 
   const connection = await db.getConnection();
@@ -34,7 +29,6 @@ router.post('/', autenticarToken, async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // 1. Busca dados do evento
     const [eventos] = await connection.execute('SELECT * FROM eventos WHERE id = ?', [eventoId]);
     if (eventos.length === 0) {
       await connection.rollback();
@@ -44,31 +38,27 @@ router.post('/', autenticarToken, async (req, res) => {
 
     if (evento.status === 'CANCELADO') {
       await connection.rollback();
-      return res.status(400).json({ mensagem: 'Este evento foi cancelado e não aceita novas compras.' });
+      return res.status(400).json({ mensagem: 'Este evento foi cancelado.' });
     }
 
     let valorTotal = Number(evento.preco);
     let assentosNomes = [];
 
-    // 2. Processa os assentos caso selecionados
     if (assentosIds && assentosIds.length > 0) {
       valorTotal = Number(evento.preco) * assentosIds.length;
-
       for (const assentoId of assentosIds) {
         const [ass] = await connection.execute('SELECT * FROM assentos WHERE id = ?', [assentoId]);
         if (ass.length > 0) {
           assentosNomes.push(ass[0].codigo_assento || ass[0].numero || assentoId);
         }
-
-        // Marca o assento como OCUPADO
         await connection.execute('UPDATE assentos SET status = "OCUPADO" WHERE id = ?', [assentoId]);
       }
     }
 
     const pedidoId = crypto.randomUUID();
-    const qrCodeHash = `CINETICKET-${pedidoId.substring(0, 8).toUpperCase()}-${Date.now()}`;
+    // Código do QR Code limpo e seguro (ex: 4F8A2B1C9D0E...)
+    const qrCodeHash = crypto.randomBytes(16).toString('hex').toUpperCase();
 
-    // 3. Insere o pedido no banco de dados
     await connection.execute(
       `INSERT INTO pedidos (id, usuario_id, evento_id, valor_total, assentos, status, qr_code)
        VALUES (?, ?, ?, ?, ?, 'CONFIRMADO', ?)`,
@@ -99,11 +89,10 @@ router.post('/', autenticarToken, async (req, res) => {
 });
 
 // ==========================================
-// 2. LISTAR MEUS INGRESSOS (Usuário Logado)
+// 2. LISTAR MEUS INGRESSOS
 // GET /api/pedidos
 // ==========================================
 router.get('/', autenticarToken, async (req, res) => {
-  // Pega o ID do usuário autenticado no token (ex: '16742a5f-a84b-4472-98ac-80482ceaec5b')
   const usuarioId = req.usuario?.id || req.usuario?.cliente_id || req.cliente?.id;
 
   if (!usuarioId) {
@@ -111,8 +100,6 @@ router.get('/', autenticarToken, async (req, res) => {
   }
 
   try {
-    // 1️⃣ Busca compras diretas na tabela 'pedidos'
-    // Usa 'usuario_id', 'qr_code' e 'criado_em' que existem no Print 2
     const [pedidos] = await db.query(`
       SELECT 
         p.id,
@@ -133,8 +120,6 @@ router.get('/', autenticarToken, async (req, res) => {
       ORDER BY p.criado_em DESC
     `, [usuarioId]);
 
-    // 2️⃣ Busca ingressos recebidos/transferidos na tabela 'ingressos'
-    // Usa 'cliente_id' e 'qr_code_hash' (sem 'criado_em') que existem no Print 1
     const [ingressos] = await db.query(`
       SELECT 
         i.id,
@@ -142,7 +127,6 @@ router.get('/', autenticarToken, async (req, res) => {
         i.cliente_id,
         i.evento_id,
         i.qr_code_hash,
-        i.token_compartilhamento,
         i.status,
         e.titulo,
         e.data_evento,
@@ -154,27 +138,75 @@ router.get('/', autenticarToken, async (req, res) => {
       WHERE i.cliente_id = ? AND i.status != 'CANCELADO'
     `, [usuarioId]).catch(() => [[]]);
 
-    // 3️⃣ Remove duplicatas (se um pedido já estiver listado via tabela pedidos)
     const idsJaIncluidos = new Set(pedidos.map(p => String(p.id)));
-
     const ingressosAdicionais = ingressos.filter(i => 
-      !idsJaIncluidos.has(String(i.id)) && 
-      !idsJaIncluidos.has(String(i.pedido_id))
+      !idsJaIncluidos.has(String(i.id)) && !idsJaIncluidos.has(String(i.pedido_id))
     );
 
-    // 4️⃣ Une as duas listas
-    const resultadoFinal = [...pedidos, ...ingressosAdicionais];
-
-    return res.json(resultadoFinal);
-
+    return res.json([...pedidos, ...ingressosAdicionais]);
   } catch (error) {
-    console.error('Erro ao buscar ingressos do usuário:', error);
+    console.error('Erro ao buscar ingressos:', error);
     return res.status(500).json({ mensagem: 'Erro interno ao buscar seus ingressos.' });
   }
 });
 
 // ==========================================
-// 3. TRANSFERIR INGRESSO
+// 3. GERAR LINK TEMPORÁRIO DE TRANSFERÊNCIA
+// POST /api/pedidos/gerar-link-transferencia
+// ==========================================
+router.post('/gerar-link-transferencia', autenticarToken, async (req, res) => {
+  const { ticketId } = req.body;
+  const usuarioId = req.usuario?.id || req.usuario?.cliente_id || req.cliente?.id;
+
+  if (!ticketId) {
+    return res.status(400).json({ mensagem: 'ID do ingresso não informado.' });
+  }
+
+  try {
+    // 1. Confirma se o ingresso pertence ao usuário autenticado
+    const [pedidos] = await db.query(
+      'SELECT id FROM pedidos WHERE id = ? AND usuario_id = ? AND status = "CONFIRMADO"',
+      [ticketId, usuarioId]
+    );
+
+    const [ingressos] = await db.query(
+      'SELECT id FROM ingressos WHERE id = ? AND cliente_id = ? AND status = "CONFIRMADO"',
+      [ticketId, usuarioId]
+    ).catch(() => [[]]);
+
+    if (pedidos.length === 0 && ingressos.length === 0) {
+      return res.status(403).json({ mensagem: 'Você não tem permissão para compartilhar este ingresso.' });
+    }
+
+    // 2. Token temporário limpo (32 caracteres hexadecimais, válido por 24 horas)
+    const tokenTransferencia = crypto.randomBytes(16).toString('hex');
+    const expiraEm = new Date(Date.now() + 24 * 60 * 60 * 1000); // +24 horas
+
+    // 3. Grava o token temporário na tabela correta
+    if (pedidos.length > 0) {
+      await db.query(
+        'UPDATE pedidos SET token_transferencia = ?, token_expira_em = ? WHERE id = ?',
+        [tokenTransferencia, expiraEm, ticketId]
+      );
+    } else {
+      await db.query(
+        'UPDATE ingressos SET token_transferencia = ?, token_expira_em = ? WHERE id = ?',
+        [tokenTransferencia, expiraEm, ticketId]
+      );
+    }
+
+    return res.json({ tokenTransferencia });
+  } catch (error) {
+    // Exibe o erro exato no terminal do Node.js para facilitar a depuração
+    console.error('ERRO DETALHADO em /gerar-link-transferencia:', error);
+    return res.status(500).json({ 
+      mensagem: 'Erro no servidor ao gerar o link. Verifique se executou os comandos ALTER TABLE no MySQL.' 
+    });
+  }
+});
+
+// ==========================================
+// 4. RESGATAR INGRESSO VIA TOKEN TEMPORÁRIO
 // POST /api/pedidos/transferir
 // ==========================================
 router.post('/transferir', autenticarToken, async (req, res) => {
@@ -182,83 +214,80 @@ router.post('/transferir', autenticarToken, async (req, res) => {
   const novoClienteId = req.usuario?.id || req.usuario?.cliente_id || req.cliente?.id;
 
   if (!codigo) {
-    return res.status(400).json({ mensagem: 'Informe o link ou código do ingresso.' });
+    return res.status(400).json({ mensagem: 'Informe o código ou link do ingresso.' });
   }
 
-  const codigoLimpo = codigo.trim().split('/').pop();
+  // Extrai o token caso o usuário cole a URL inteira
+  const tokenLimpo = codigo.trim().split('/').pop();
+  const connection = await db.getConnection();
 
   try {
-    const [rowsIngressos] = await db.query(
-      `SELECT * FROM ingressos WHERE token_compartilhamento = ? OR qr_code_hash = ? OR id = ?`,
-      [codigoLimpo, codigoLimpo, codigoLimpo]
+    await connection.beginTransaction();
+
+    // 1. Busca pelo token dentro da validade de 24h
+    const [pedidos] = await connection.query(
+      `SELECT * FROM pedidos WHERE token_transferencia = ? AND token_expira_em > NOW()`,
+      [tokenLimpo]
     );
 
-    const [rowsPedidos] = await db.query(
-      `SELECT * FROM pedidos WHERE id = ? OR qr_code = ?`,
-      [codigoLimpo, codigoLimpo]
-    );
+    const [ingressos] = await connection.query(
+      `SELECT * FROM ingressos WHERE token_transferencia = ? AND token_expira_em > NOW()`,
+      [tokenLimpo]
+    ).catch(() => [[]]);
 
-    if (rowsIngressos.length === 0 && rowsPedidos.length === 0) {
-      return res.status(404).json({ mensagem: 'Ingresso não encontrado ou código inválido.' });
+    if (pedidos.length === 0 && ingressos.length === 0) {
+      await connection.rollback();
+      return res.status(400).json({ 
+        mensagem: 'O link de transferência é inválido, já foi utilizado ou expirou (validade de 24h).' 
+      });
     }
 
-    const item = rowsIngressos[0] || rowsPedidos[0];
+    const item = pedidos[0] || ingressos[0];
+    const ePedido = pedidos.length > 0;
 
-    if (item.cliente_id === novoClienteId || item.usuario_id === novoClienteId) {
+    // Impede resgate da própria conta
+    if ((item.usuario_id || item.cliente_id) === novoClienteId) {
+      await connection.rollback();
       return res.status(400).json({ mensagem: 'Este ingresso já pertence à sua conta!' });
     }
 
-    await db.query(
-      `UPDATE ingressos SET cliente_id = ? WHERE token_compartilhamento = ? OR qr_code_hash = ? OR id = ?`,
-      [novoClienteId, codigoLimpo, codigoLimpo, codigoLimpo]
-    ).catch(() => {});
+    // Regenera o QR Code sem qualquer prefixo (Invalida prints do antigo dono)
+    const novoQrCodeHash = crypto.randomBytes(16).toString('hex').toUpperCase();
 
-    await db.query(
-      `UPDATE pedidos SET usuario_id = ? WHERE id = ? OR qr_code = ?`,
-      [novoClienteId, codigoLimpo, codigoLimpo]
-    ).catch(() => {});
-
-    return res.json({ mensagem: '🎉 Ingresso transferido para a sua conta com sucesso!' });
-
-  } catch (error) {
-    console.error('Erro ao transferir ingresso:', error);
-    return res.status(500).json({ mensagem: 'Erro interno ao processar a transferência do ingresso.' });
-  }
-});
-
-// ==========================================
-// 4. VER INGRESSO COMPARTILHADO
-// GET /api/pedidos/compartilhado/:codigo
-// ==========================================
-router.get('/compartilhado/:codigo', async (req, res) => {
-  const { codigo } = req.params;
-  const codigoLimpo = codigo.trim().split('/').pop();
-
-  try {
-    const [rows] = await db.query(`
-      SELECT 
-        i.id,
-        i.token_compartilhamento AS token,
-        i.qr_code_hash AS qrCodeHash,
-        i.assento_id AS assentoId,
-        e.titulo AS eventoTitulo,
-        e.data_evento AS dataEvento,
-        e.local,
-        c.nome AS titular
-      FROM ingressos i
-      LEFT JOIN eventos e ON i.evento_id = e.id
-      LEFT JOIN clientes c ON i.cliente_id = c.id
-      WHERE i.token_compartilhamento = ? OR i.id = ? OR i.qr_code_hash = ?
-    `, [codigoLimpo, codigoLimpo, codigoLimpo]);
-
-    if (rows.length === 0) {
-      return res.status(404).json({ mensagem: 'Ingresso não encontrado ou inválido.' });
+    if (ePedido) {
+      await connection.query(
+        `UPDATE pedidos 
+         SET usuario_id = ?, 
+             qr_code = ?, 
+             token_transferencia = NULL, 
+             token_expira_em = NULL 
+         WHERE id = ?`,
+        [novoClienteId, novoQrCodeHash, item.id]
+      );
+    } else {
+      await connection.query(
+        `UPDATE ingressos 
+         SET cliente_id = ?, 
+             qr_code_hash = ?, 
+             token_transferencia = NULL, 
+             token_expira_em = NULL 
+         WHERE id = ?`,
+        [novoClienteId, novoQrCodeHash, item.id]
+      );
     }
 
-    return res.json(rows[0]);
+    await connection.commit();
+
+    return res.json({ 
+      mensagem: '🎉 Ingresso transferido para a sua conta com sucesso! O QR Code antigo foi invalidado.' 
+    });
+
   } catch (error) {
-    console.error('Erro ao buscar ingresso compartilhado:', error);
-    return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
+    await connection.rollback();
+    console.error('Erro na transferência:', error);
+    return res.status(500).json({ mensagem: 'Erro interno ao processar a transferência.' });
+  } finally {
+    connection.release();
   }
 });
 
