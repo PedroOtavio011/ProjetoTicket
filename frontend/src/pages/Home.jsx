@@ -54,20 +54,34 @@ export default function Home() {
   };
 
   const handleBuscarTmdb = async () => {
-    if (!buscaTmdb) return alert('Digite o nome de um filme para buscar.');
-    try {
-      const res = await api.get(`/tmdb/buscar?query=${encodeURIComponent(buscaTmdb)}`);
-      if (res.data && res.data.length > 0) {
-        const filme = res.data[0];
-        setTitulo(filme.title || filme.titulo);
-        setImagemUrl(filme.poster_path ? `https://image.tmdb.org/t/p/w500${filme.poster_path}` : filme.imagem_url);
-      } else {
-        alert('Nenhum filme encontrado no TMDB.');
+  if (!buscaTmdb) return alert('Digite o nome de um filme para buscar.');
+
+  try {
+    // 1. Caminho correto considerando baseURL: .../api + /eventos/tmdb/buscar
+    const res = await api.get(`/eventos/tmdb/buscar?query=${encodeURIComponent(buscaTmdb)}`);
+    
+    // 2. Acessa a lista de resultados retornada pelo seu backend
+    const listaFilmes = res.data.resultados || [];
+
+    if (listaFilmes.length > 0) {
+      const filme = listaFilmes[0]; // Pega o primeiro filme encontrado
+      
+      // 3. O backend já envia 'titulo', 'descricao' e 'imagemUrl' formatados
+      setTitulo(filme.titulo);
+      setImagemUrl(filme.imagemUrl || '');
+      
+      // Dica: Se quiser preencher a descrição automaticamente no seu form:
+      if (typeof setDescricao === 'function' && filme.descricao) {
+        setDescricao(filme.descricao);
       }
-    } catch (err) {
-      alert('Erro ao buscar filme no TMDB.');
+    } else {
+      alert('Nenhum filme encontrado no TMDB.');
     }
-  };
+  } catch (err) {
+    console.error('Erro na busca do TMDB:', err);
+    alert(err.response?.data?.mensagem || 'Erro ao buscar filme no TMDB.');
+  }
+};
 
   const handleCriarEvento = async (e) => {
     e.preventDefault();
