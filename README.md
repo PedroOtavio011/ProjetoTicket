@@ -83,10 +83,13 @@ ProjetoTicket/
     ├── package.json
     └── vite.config.js
 ```
-🛠️ Como Configurar e Executar o Projeto
-1. Configuração do Banco de Dados MySQL
-Abra seu client MySQL (Workbench, DBeaver, etc.) e execute o script SQL abaixo para estruturar a base plataforma_eventos e inserir os dados iniciais de teste:
+## 🛠️ Como Configurar e Executar o Projeto
 
+### 1. Configuração do Banco de Dados MySQL
+
+Abra seu client MySQL (Workbench, DBeaver, etc.) e execute o script SQL abaixo para estruturar a base `plataforma_eventos` e inserir os dados iniciais de teste:
+
+```sql
 CREATE DATABASE IF NOT EXISTS plataforma_eventos;
 USE plataforma_eventos;
 
@@ -212,9 +215,21 @@ INSERT INTO `assentos` (`id`, `evento_id`, `codigo_assento`, `status`) VALUES
 ('ast-005-00000000-0000-0000-000000000005', 'evt-001-00000000-0000-0000-000000000001', 'B2', 'DISPONIVEL')
 ON DUPLICATE KEY UPDATE `id`=`id`;
 
-2. Configuração do Arquivo .env Global
-Na raiz do projeto (ProjetoTicket/), crie/edite o arquivo .env unificado contendo as configurações da API Backend e a URL consumida pelo Vite Frontend:
+### ⚙️ Configuração do Arquivo `.env` Global
 
+O arquivo **`.env`** deve ficar localizado no **diretório raiz do projeto** (`ProjetoTicket/.env`). Ele centraliza as variáveis do servidor backend e a URL de conexão consumida pelo Vite no frontend.
+
+```text
+ProjetoTicket/
+├── .env  <-- [CRIE/EDITE O ARQUIVO AQUI]
+├── package.json
+├── server/
+└── frontend/
+```
+
+Conteúdo do arquivo **`ProjetoTicket/.env`**:
+
+```env
 # Configurações do Servidor
 PORT=3001
 
@@ -230,19 +245,29 @@ TMDB_API_KEY=sua_chave_api_tmdb
 
 # Configuração do Frontend (Vite)
 VITE_API_URL=http://localhost:3001
+```
 
-3. Executando o Backend (Servidor)
-No terminal principal, estando na raiz do projeto (ProjetoTicket/):
+---
 
+### 🚀 Executando o Projeto
+
+**1. Executando o Backend (Servidor)**
+
+No terminal principal, certifique-se de estar na **raiz do projeto** (`ProjetoTicket/`):
+
+```bash
 # Instale as dependências gerais do projeto
 npm install
 
 # Inicie a API Express em modo de desenvolvimento
 npm run dev
+```
 
-4. Executando o Frontend (React)
-Abra um segundo terminal e navegue até a pasta frontend/:
+**2. Executando o Frontend (React)**
 
+Abra um **segundo terminal** e navegue para dentro da pasta do frontend (`ProjetoTicket/frontend/`):
+
+```bash
 # Entre na pasta do frontend
 cd frontend
 
@@ -251,5 +276,6 @@ npm install
 
 # Inicie o servidor de desenvolvimento do Vite
 npm run dev
+```
 
-Acesse a aplicação no seu navegador em http://localhost:5173.
+Acesse a aplicação no seu navegador em: `http://localhost:5173`
