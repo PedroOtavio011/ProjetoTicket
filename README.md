@@ -1,36 +1,94 @@
-🎫 Elite Tickets — Plataforma de Eventos e IngressosPlataforma full-stack de publicação, compra, gestão e validação de ingressos em tempo real. O sistema integra a API do TMDb para consulta de filmes, oferece mapa interativo de assentos, realiza pagamentos simulados, gera ingressos com QR Code infalsificável, permite o compartilhamento por link e possui um módulo de portaria com leitor via câmera.
-🌐 Links de DeployFrontend (Vercel): [https://seu-projeto.vercel.app](https://seu-projeto.vercel.app)Backend (Render): [https://sua-api.onrender.com](https://sua-api.onrender.com)🧠 Processo de Desenvolvimento e Uso de IAAtendendo às diretrizes da avaliação, a Inteligência Artificial (Google Gemini) foi utilizada estritamente como uma ferramenta copilota de produtividade.
+# 🎫 Elite Tickets — Plataforma de Eventos e Ingressos
 
-O que foi 100% idealizado e direcionado por mim:Regras de Negócio & Arquitetura: Modelei o esquema relacional no MySQL (relacionamento entre usuarios, eventos, assentos, pedidos e ingressos), defini o controle transacional contra double booking e estruturei a autorização baseada em papéis (RBAC).  Design & UX (Anti-"AI Slop"): Para evitar interfaces genéricas, desenhei a interface do zero no React, priorizando a usabilidade do mapa de assentos e o painel responsivo da portaria.  Estratégias de Segurança: Implementação manual de Rate Limiting, criptografia e geração dos hashes únicos dos ingressos.  
+Plataforma full-stack para publicação, compra, gestão e validação de ingressos em tempo real. O sistema integra a API do TMDb para consulta de filmes, oferece mapa interativo de assentos, realiza pagamentos simulados, gera ingressos com QR Code infalsificável, permite o compartilhamento por link e possui um módulo de portaria com leitor de QR Code via câmera.
 
-Onde a IA atuou como Copilota:Apoio na depuração de erros assíncronos e tratamento de exceções no Axios.Refatoração sintática de rotinas do Express e validação de regras de concorrência.🏛️ Decisões de Arquitetura e Segurança1. Proteção com Rate LimitingPara evitar ataques de força bruta e abusos na API, integrei a biblioteca express-rate-limit:Login (/api/auth/login): Limite estrito de 5 tentativas a cada 15 minutos por IP contra ataques brute force.API Geral (/api): Limite de 100 requisições a cada 15 minutos por IP, prevenindo bot scalping no mapa de assentos e otimizando a cota da API do TMDb.  2. Autenticação e Gestão de Tokens (JWT + Strategy)A autenticação utiliza JSON Web Tokens (JWT) trafegados no cabeçalho Authorization: Bearer <token>:Por que localStorage + Headers em vez de Cookies HttpOnly? Com o Frontend na Vercel e o Backend no Render (domínios distintos), a política de cookies de terceiros (cross-site) exige SameSite=None; Secure, gerando bloqueios imprevisíveis em navegadores. O Bearer Token via Header elimina incompatibilidades de CORS e mantém a API 100% stateless.Tratamento de Expiracão: O Axios intercepta respostas 401 Unauthorized. Quando um token expira, o frontend limpa a sessão local e redireciona o usuário para o login com feedback imediato.3. QR Code Criptografado e Token de CompartilhamentoCada ingresso emitido gera um identificador único armazenado em qr_code_hash e um token_compartilhamento.  O QR Code renderizado na tela armazena esse hash seguro. Na portaria, ao escanear a imagem ou digitar o código, o backend atualiza o campo status para 'UTILIZADO' e grava a data em validado_em dentro de uma transação com lock, impedindo que o mesmo ingresso seja validado duas vezes.  4. Integridade de Reservas: Prevenção de Double BookingPara eventos do tipo COM_ASSENTO, a tabela assentos aplica a restrição única uk_evento_assento entre evento_id e codigo_assento. Tentativas simultâneas de compra para a mesma cadeira são rejeitadas diretamente no nível do banco.  
+---
 
-📂 Estrutura do ProjetoPlaintextProjetoTicket/
-├── .env                  # Variáveis de ambiente da API / Backend
+## 🌐 Links de Deploy
+
+* **Frontend (Vercel):** ``
+* **Backend (Render):** ``
+
+---
+
+## 🧠 Processo de Desenvolvimento e Uso de IA
+
+Atendendo às diretrizes do desafio, a Inteligência Artificial (Google Gemini) foi utilizada exclusivamente como uma **ferramenta copilota de produtividade**.
+
+### 🎯 O que foi 100% idealizado e direcionado por mim:
+
+* **Regras de Negócio & Arquitetura:** Modelei o esquema relacional do banco de dados no MySQL (`usuarios`, `eventos`, `assentos`, `pedidos`[cite: 5] e `ingressos`), criei a lógica transacional contra *double booking* e estruturei o controle de acesso por papéis (RBAC).
+* **Design & UX (Anti-"AI Slop"):** Para evitar interfaces genéricas ("AI slop"), construí o design no React do zero, focando na usabilidade visual do mapa de assentos e na agilidade do scanner de portaria.
+* **Estratégias de Segurança:** Implementação do Rate Limiting, autenticação JWT e geração de hashes criptográficos únicos para os ingressos.
+
+### 🤖 Onde a IA atuou como Copilota:
+
+* Apoio na depuração de erros assíncronos e tratamento de exceções no Axios.
+* Refatoração sintática de rotinas do Express e validação de regras de concorrência.
+
+---
+
+## 🏛️ Decisões de Arquitetura e Segurança
+
+### 1. Proteção com Rate Limiting
+
+Para mitigar ataques de força bruta e sobrecarga de requisições, integrei o `express-rate-limit`:
+
+* **Login (`/api/auth/login`):** Limite estrito de 5 tentativas a cada 15 minutos por IP para impedir ataques de força bruta.
+* **API Geral (`/api`):** Limite de 100 requisições a cada 15 minutos por IP, prevenindo *bot scalping* no mapa de assentos e preservando a cota da API do TMDb.
+
+### 2. Autenticação e Gestão de Tokens (JWT + Strategy)
+
+A autenticação utiliza JSON Web Tokens (JWT) trafegados no cabeçalho `Authorization: Bearer <token>`:
+
+* **Por que `localStorage` + Headers em vez de Cookies `HttpOnly`?** Com o Frontend na Vercel e o Backend no Render (domínios distintos), a política de cookies de terceiros (*cross-site*) exige `SameSite=None; Secure`, o que frequentemente gera bloqueios imprevisíveis em navegadores. O Bearer Token via Header elimina incompatibilidades de CORS e mantém a API 100% *stateless*.
+* **Tratamento de Expiração:** O Axios intercepta respostas `401 Unauthorized`. Quando o token expira, o frontend limpa os dados locais e redireciona o usuário para reautenticação.
+
+### 3. QR Code Criptografado e Token de Compartilhamento
+
+* Cada ingresso gera um hash criptográfico único gravado em `qr_code_hash` e um `token_compartilhamento`[cite: 4].
+* O QR Code renderizado na tela contém apenas essa identificação[cite: 4]. Na portaria, ao escanear a imagem ou digitar o código, o backend atualiza o status para `'UTILIZADO'` e grava a data em `validado_em` com suporte transacional[cite: 4], **impedindo que o mesmo ingresso seja validado duas vezes**.
+
+### 4. Integridade de Reservas: Prevenção de *Double Booking*
+
+Para eventos do tipo `COM_ASSENTO`[cite: 3], a tabela `assentos` aplica a restrição `uk_evento_assento` entre `evento_id` e `codigo_assento`. Tentativas simultâneas de compra para a mesma cadeira são bloqueadas na camada do banco de dados.
+
+---
+
+## 📂 Estrutura do Projeto
+
+```text
+ProjetoTicket/
+├── .env                  # Variáveis de ambiente globais (Backend + Frontend)
 ├── .gitignore
-├── package.json          # Dependências do Backend (Express, Cors, Dotenv, Rate Limit, etc.)
+├── package.json          # Dependências do Backend e scripts de inicialização
 ├── package-lock.json
 ├── README.md
 ├── server/               # Servidor Node.js
 │   ├── middlewares/      # Middlewares de autenticação e proteção
 │   │   └── authMiddleware.js
-│   ├── routes/           # Rotas da aplicação
+│   ├── routes/           # Rotas divididas por domínio
 │   │   ├── authRoutes.js
 │   │   ├── eventoRoutes.js
 │   │   ├── pedidoRoutes.js
 │   │   └── portariaRoutes.js
-│   ├── db.js             # Conexão MySQL
-│   └── index.js          # Ponto de entrada do servidor
+│   ├── db.js             # Conexão com banco de dados MySQL
+│   └── index.js          # Ponto de entrada da API Express
 └── frontend/             # Aplicação React (Vite)
     ├── public/
     ├── src/
-    │   ├── components/   # Componentes (Navbar, RotaProtegida)
-    │   ├── pages/        # Páginas da aplicação
-    │   └── services/     # Configuração do Axios (api.js)
-    ├── .env              # VITE_API_URL
+    │   ├── components/   # Navbar, RotaProtegida, etc.
+    │   ├── pages/        # Telas da aplicação
+    │   └── services/     # Instância centralizada do Axios (api.js)
     ├── package.json
     └── vite.config.js
+```
+🛠️ Como Configurar e Executar o Projeto
+1. Configuração do Banco de Dados MySQL
+Abra seu client MySQL (Workbench, DBeaver, etc.) e execute o script SQL abaixo para estruturar a base plataforma_eventos e inserir os dados iniciais de teste:
 
+CREATE DATABASE IF NOT EXISTS plataforma_eventos;
+USE plataforma_eventos;
 
 -- 1. Tabela de Usuários
 CREATE TABLE IF NOT EXISTS `usuarios` (
@@ -142,7 +200,7 @@ ON DUPLICATE KEY UPDATE `email`=`email`;
 
 -- Evento de Teste Inicial
 INSERT INTO `eventos` (`id`, `titulo`, `descricao`, `imagem_url`, `data_evento`, `local`, `capacidade`, `preco`, `tipo`, `organizador_id`, `status`) VALUES
-('evt-001-00000000-0000-0000-000000000001', 'The Batman - Exibição Especial', 'Sessão exclusiva com mapa de assentos.', 'https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50A9223a130.jpg', '2026-10-15 20:00:00', 'Cinemark Hall 1', 50, 35.00, 'COM_ASSENTO', 'usr-org-00000000-0000-0000-000000000001', 'ATIVO')
+('evt-001-00000000-0000-0000-000000000001', 'The Batman - Exibição Especial', 'Sessão exclusiva com mapa de assentos.', '[https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50A9223a130.jpg](https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50A9223a130.jpg)', '2026-10-15 20:00:00', 'Cinemark Hall 1', 50, 35.00, 'COM_ASSENTO', 'usr-org-00000000-0000-0000-000000000001', 'ATIVO')
 ON DUPLICATE KEY UPDATE `id`=`id`;
 
 -- Assentos do Evento
@@ -154,21 +212,44 @@ INSERT INTO `assentos` (`id`, `evento_id`, `codigo_assento`, `status`) VALUES
 ('ast-005-00000000-0000-0000-000000000005', 'evt-001-00000000-0000-0000-000000000001', 'B2', 'DISPONIVEL')
 ON DUPLICATE KEY UPDATE `id`=`id`;
 
-2. Configuração do Backend (Servidor)No terminal, estando na raiz do projeto (ProjetoTicket/):Bash# Instale as dependências da raiz/backend
-npm install
-Crie o arquivo .env na raiz do projeto (ProjetoTicket/.env):Snippet de códigoPORT=3001
+2. Configuração do Arquivo .env Global
+Na raiz do projeto (ProjetoTicket/), crie/edite o arquivo .env unificado contendo as configurações da API Backend e a URL consumida pelo Vite Frontend:
+
+# Configurações do Servidor
+PORT=3001
+
+# Conexão com o Banco de Dados
 DB_HOST=localhost
 DB_USER=root
 DB_PASS=suasenha
 DB_NAME=plataforma_eventos
+
+# Segredos e APIs Externas
 JWT_SECRET=sua_chave_secreta_jwt
 TMDB_API_KEY=sua_chave_api_tmdb
-Inicie o servidor Express:Bashnpm run dev
-# Ou: node server/index.js
-3. Configuração do Frontend (React)Abra um segundo terminal e acesse a pasta frontend/:Bashcd frontend
 
-# Instale as dependências do React
+# Configuração do Frontend (Vite)
+VITE_API_URL=http://localhost:3001
+
+3. Executando o Backend (Servidor)
+No terminal principal, estando na raiz do projeto (ProjetoTicket/):
+
+# Instale as dependências gerais do projeto
 npm install
-Crie o arquivo frontend/.env:Snippet de códigoVITE_API_URL=http://localhost:3001
-Execute a aplicação:Bashnpm run dev
-Acesse a interface no seu navegador: `
+
+# Inicie a API Express em modo de desenvolvimento
+npm run dev
+
+4. Executando o Frontend (React)
+Abra um segundo terminal e navegue até a pasta frontend/:
+
+# Entre na pasta do frontend
+cd frontend
+
+# Instale as dependências da aplicação React
+npm install
+
+# Inicie o servidor de desenvolvimento do Vite
+npm run dev
+
+Acesse a aplicação no seu navegador em http://localhost:5173.
