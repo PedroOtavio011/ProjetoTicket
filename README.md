@@ -90,12 +90,12 @@ ProjetoTicket/
 Abra seu client MySQL (Workbench, DBeaver, etc.) e execute o script SQL abaixo para estruturar a base `plataforma_eventos` e inserir os dados iniciais de teste:
 
 ```sql
-CREATE DATABASE IF NOT EXISTS plataforma_eventos;
+CREATE DATABASE plataforma_eventos;
 USE plataforma_eventos;
 
 -- 1. Tabela de Usuários
 CREATE TABLE IF NOT EXISTS `usuarios` (
-  `id` varchar(36) NOT NULL,
+  `id` varchar(50) NOT NULL,
   `nome` varchar(255) NOT NULL,
   `email` varchar(255) NOT NULL,
   `senha` varchar(255) NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
 
 -- 2. Tabela de Eventos
 CREATE TABLE IF NOT EXISTS `eventos` (
-  `id` varchar(36) NOT NULL,
+  `id` varchar(50) NOT NULL,
   `titulo` varchar(255) NOT NULL,
   `descricao` text,
   `imagem_url` varchar(500) DEFAULT NULL,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS `eventos` (
   `capacidade` int NOT NULL,
   `preco` decimal(10,2) NOT NULL,
   `tipo` enum('COM_ASSENTO','SEM_ASSENTO') DEFAULT 'COM_ASSENTO',
-  `organizador_id` varchar(36) NOT NULL,
+  `organizador_id` varchar(50) NOT NULL,
   `status` varchar(20) DEFAULT 'ATIVO',
   `criado_em` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `atualizado_em` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -130,8 +130,8 @@ CREATE TABLE IF NOT EXISTS `eventos` (
 
 -- 3. Tabela de Assentos
 CREATE TABLE IF NOT EXISTS `assentos` (
-  `id` varchar(36) NOT NULL,
-  `evento_id` varchar(36) NOT NULL,
+  `id` varchar(50) NOT NULL,
+  `evento_id` varchar(50) NOT NULL,
   `codigo_assento` varchar(50) NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'DISPONIVEL',
   `criado_em` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -143,9 +143,9 @@ CREATE TABLE IF NOT EXISTS `assentos` (
 
 -- 4. Tabela de Pedidos
 CREATE TABLE IF NOT EXISTS `pedidos` (
-  `id` varchar(36) NOT NULL,
-  `usuario_id` varchar(36) NOT NULL,
-  `evento_id` varchar(36) NOT NULL,
+  `id` varchar(50) NOT NULL,
+  `usuario_id` varchar(50) NOT NULL,
+  `evento_id` varchar(50) NOT NULL,
   `valor_total` decimal(10,2) NOT NULL,
   `assentos` varchar(255) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'CONFIRMADO',
@@ -163,13 +163,13 @@ CREATE TABLE IF NOT EXISTS `pedidos` (
 
 -- 5. Tabela de Ingressos
 CREATE TABLE IF NOT EXISTS `ingressos` (
-  `id` varchar(36) NOT NULL,
-  `pedido_id` varchar(36) NOT NULL,
-  `cliente_id` varchar(36) NOT NULL,
-  `evento_id` varchar(36) NOT NULL,
-  `assento_id` varchar(36) DEFAULT NULL,
+  `id` varchar(50) NOT NULL,
+  `pedido_id` varchar(50) NOT NULL,
+  `cliente_id` varchar(50) NOT NULL,
+  `evento_id` varchar(50) NOT NULL,
+  `assento_id` varchar(50) DEFAULT NULL,
   `qr_code_hash` varchar(500) NOT NULL,
-  `token_compartilhamento` varchar(36) NOT NULL,
+  `token_compartilhamento` varchar(50) NOT NULL,
   `status` enum('VALIDO','UTILIZADO','CANCELADO') NOT NULL DEFAULT 'VALIDO',
   `validado_em` datetime(3) DEFAULT NULL,
   `token_transferencia` varchar(255) DEFAULT NULL,
@@ -189,11 +189,7 @@ CREATE TABLE IF NOT EXISTS `ingressos` (
   CONSTRAINT `ingressos_ibfk_4` FOREIGN KEY (`assento_id`) REFERENCES `assentos` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ========================================================
--- SEED DATA: USUÁRIOS E EVENTO DE TESTE
--- ========================================================
-
--- Usuários pré-cadastrados (Senha: 'senha123')
+-- SEED DATA
 INSERT INTO `usuarios` (`id`, `nome`, `email`, `senha`, `papel`) VALUES
 ('usr-org-00000000-0000-0000-000000000001', 'Organizador Master', 'organizador@elite.com', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQOEg6Lruj3vjPGga31lW', 'ORGANIZADOR'),
 ('usr-cli-00000000-0000-0000-000000000001', 'Cliente Silva', 'cliente1@elite.com', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQOEg6Lruj3vjPGga31lW', 'CLIENTE'),
@@ -201,12 +197,10 @@ INSERT INTO `usuarios` (`id`, `nome`, `email`, `senha`, `papel`) VALUES
 ('usr-por-00000000-0000-0000-000000000001', 'Agente Portaria', 'portaria@elite.com', '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQOEg6Lruj3vjPGga31lW', 'PORTARIA')
 ON DUPLICATE KEY UPDATE `email`=`email`;
 
--- Evento de Teste Inicial
 INSERT INTO `eventos` (`id`, `titulo`, `descricao`, `imagem_url`, `data_evento`, `local`, `capacidade`, `preco`, `tipo`, `organizador_id`, `status`) VALUES
-('evt-001-00000000-0000-0000-000000000001', 'The Batman - Exibição Especial', 'Sessão exclusiva com mapa de assentos.', '[https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50A9223a130.jpg](https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50A9223a130.jpg)', '2026-10-15 20:00:00', 'Cinemark Hall 1', 50, 35.00, 'COM_ASSENTO', 'usr-org-00000000-0000-0000-000000000001', 'ATIVO')
+('evt-001-00000000-0000-0000-000000000001', 'The Batman - Exibição Especial', 'Sessão exclusiva com mapa de assentos.', 'https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50A9223a130.jpg', '2026-10-15 20:00:00', 'Cinemark Hall 1', 50, 35.00, 'COM_ASSENTO', 'usr-org-00000000-0000-0000-000000000001', 'ATIVO')
 ON DUPLICATE KEY UPDATE `id`=`id`;
 
--- Assentos do Evento
 INSERT INTO `assentos` (`id`, `evento_id`, `codigo_assento`, `status`) VALUES
 ('ast-001-00000000-0000-0000-000000000001', 'evt-001-00000000-0000-0000-000000000001', 'A1', 'DISPONIVEL'),
 ('ast-002-00000000-0000-0000-000000000002', 'evt-001-00000000-0000-0000-000000000001', 'A2', 'DISPONIVEL'),
