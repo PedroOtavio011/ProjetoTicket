@@ -43,7 +43,7 @@ export default function Login() {
 
   // ⚡ Atalho para preenchimento e login rápido em demonstrações
   const preencherQuickLogin = async (emailDigitado) => {
-    const senhaPadrao = '123456';
+    const senhaPadrao = 'secret';
     setLoadingQuick(emailDigitado);
     setEmail(emailDigitado);
     setSenha(senhaPadrao);
