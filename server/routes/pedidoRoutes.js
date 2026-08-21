@@ -51,7 +51,7 @@ router.post('/', autenticarToken, async (req, res) => {
         if (ass.length > 0) {
           assentosNomes.push(ass[0].codigo_assento || ass[0].numero || assentoId);
         }
-        await connection.execute('UPDATE assentos SET status = "OCUPADO" WHERE id = ?', [assentoId]);
+        await connection.execute('UPDATE assentos SET status = ? WHERE id = ?', ['OCUPADO', assentoId]);
       }
     }
 
