@@ -15,20 +15,29 @@ Toda a aplicação — Frontend (Vercel), Backend API (Render) e Banco de Dados 
 ---
 
 ## 🧠 Processo de Desenvolvimento e Uso de IA
+Atendendo às diretrizes do desafio, a Inteligência Artificial (Google Gemini) foi utilizada estrategicamente como uma ferramenta de aceleração e ganho de tempo, permitindo focar os esforços na engenharia do projeto, na qualidade do código e nas decisões técnicas.
 
-Atendendo às diretrizes do desafio, a Inteligência Artificial (Google Gemini) foi utilizada exclusivamente como uma **ferramenta copilota de produtividade**.
+🎯 Idealização, Arquitetura e Engenharia (100% Autoral):
 
-### 🎯 O que foi 100% idealizado e direcionado por mim:
+Modelagem de Banco de Dados: Todo o esquema relacional no MySQL (usuarios, eventos, assentos, pedidos e ingressos) foi idealizado e estruturado por mim, definindo chaves, relacionamentos e integridade dos dados.
 
-* **Regras de Negócio & Arquitetura:** Modelei o esquema relacional do banco de dados no MySQL (`usuarios`, `eventos`, `assentos`, `pedidos`[cite: 5] e `ingressos`), criei a lógica transacional contra *double booking* e estruturei o controle de acesso por papéis (RBAC).
-* **Design & UX (Anti-"AI Slop"):** Para evitar interfaces genéricas ("AI slop"), construí o design no React do zero, focando na usabilidade visual do mapa de assentos e na agilidade do scanner de portaria.
-* **Estratégias de Segurança:** Implementação do Rate Limiting, autenticação JWT e geração de hashes criptográficos únicos para os ingressos.
+Regras de Negócio & Concorrência: Criação autoral de toda a lógica transacional contra double booking, controle de status dos ingressos e regras do fluxo completo de compra e validação na portaria.
 
-### 🤖 Onde a IA atuou como Copilota:
+Arquitetura de Segurança: Estruturação e implementação do controle de acesso por papéis (RBAC), proteção contra força bruta com Rate Limiting, autenticação via JWT e geração de hashes criptográficos para os QR Codes.
 
-* Apoio na depuração de erros assíncronos e tratamento de exceções no Axios.
-* Refatoração sintática de rotinas do Express e validação de regras de concorrência.
+Design & UX: Construção da interface no React focando em usabilidade e agilidade no scanner mobile, mantendo uma identidade visual autêntica e evitando layouts genéricos ("AI Slop").
 
+🤖 Onde a IA atuou como Copilota (Ganho de Tempo e Debugging):
+
+Diagnóstico e Debugging: Apoio na identificação e correção rápida de erros assíncronos, conexões com o MySQL em nuvem, tratamento de exceções no Axios e ajustes de proxy/DNS na hospedagem.
+
+Aceleração de Código: Geração de boilerplate repetitivo para rotas do Express, refatoração sintática e otimização na escrita de algoritmos pontuais.
+
+☁️ Observação sobre a Hospedagem e Testes (Free Tier):
+
+Como o projeto está hospedado em plataformas de infraestrutura gratuita (Render para o Backend e Aiven para o Banco de Dados MySQL), ambos os serviços entram em modo de hibernação/suspensão automática após um período de inatividade.
+
+Caso encontre algum erro de conexão (500 Internal Error, ENOTFOUND ou timeout) no primeiro acesso, basta aguardar de 1 a 2 minutos para que as instâncias "acordem" e restabeleçam a comunicação.
 ---
 
 ## 🏛️ Decisões de Arquitetura e Segurança
