@@ -67,12 +67,12 @@ A autenticação utiliza JSON Web Tokens (JWT) trafegados no cabeçalho `Authori
 
 ### 3. QR Code Criptografado e Token de Compartilhamento
 
-* Cada ingresso gera um hash criptográfico único gravado em `qr_code_hash` e um `token_compartilhamento`[cite: 4].
-* O QR Code renderizado na tela contém apenas essa identificação[cite: 4]. Na portaria, ao escanear a imagem ou digitar o código, o backend atualiza o status para `'UTILIZADO'` e grava a data em `validado_em` com suporte transacional[cite: 4], **impedindo que o mesmo ingresso seja validado duas vezes**.
+* Cada ingresso gera um hash criptográfico único gravado em `qr_code_hash` e um `token_compartilhamento`.
+* O QR Code renderizado na tela contém apenas essa identificação. Na portaria, ao escanear a imagem ou digitar o código, o backend atualiza o status para `'UTILIZADO'` e grava a data em `validado_em` com suporte transacional, **impedindo que o mesmo ingresso seja validado duas vezes**.
 
 ### 4. Integridade de Reservas: Prevenção de *Double Booking*
 
-Para eventos do tipo `COM_ASSENTO`[cite: 3], a tabela `assentos` aplica a restrição `uk_evento_assento` entre `evento_id` e `codigo_assento`. Tentativas simultâneas de compra para a mesma cadeira são bloqueadas na camada do banco de dados.
+Para eventos do tipo `COM_ASSENTO`, a tabela `assentos` aplica a restrição `uk_evento_assento` entre `evento_id` e `codigo_assento`. Tentativas simultâneas de compra para a mesma cadeira são bloqueadas na camada do banco de dados.
 
 ---
 
