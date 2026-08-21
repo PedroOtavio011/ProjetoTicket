@@ -1,13 +1,16 @@
 # 🎫 Elite Tickets — Plataforma de Eventos e Ingressos
 
-Plataforma full-stack para publicação, compra, gestão e validação de ingressos em tempo real. O sistema integra a API do TMDb para consulta de filmes, oferece mapa interativo de assentos, realiza pagamentos simulados, gera ingressos com QR Code infalsificável, permite o compartilhamento por link e possui um módulo de portaria com leitor de QR Code via câmera.
+🚀 PROJETO 100% HOSPEDADO EM NUVEM E PRONTO PARA AVALIAÇÃO!
+
+Você não precisa baixar, configurar ou executar nada localmente.
+
+Toda a aplicação — Frontend (Vercel), Backend API (Render) e Banco de Dados (MySQL Cloud) — está no ar e integrada. Basta acessar o link do projeto e utilizar os botões de atalho na tela de login ou as credenciais de teste abaixo.
 
 ---
 
-## 🌐 Links de Deploy
+## 🌐 Link de Deploy
 
-* **Frontend (Vercel):** ``
-* **Backend (Render):** ``
+* **Frontend (Vercel):** `projeto-ticket.vercel.app`
 
 ---
 
