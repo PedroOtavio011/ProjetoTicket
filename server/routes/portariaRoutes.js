@@ -96,7 +96,7 @@ router.post('/validar', autenticarToken, async (req, res) => {
     }
 
     // 5. INGRESSO VÁLIDO -> Marca como UTILIZADO no Banco de Dados
-    await connection.execute('UPDATE pedidos SET status = ? WHERE id = ?', ['UTILIZADO', id]);
+    await db.query('UPDATE pedidos SET status = ? WHERE id = ?', ['UTILIZADO', id]);
 
     return res.json({
       valido: true,

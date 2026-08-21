@@ -11,6 +11,9 @@ const portariaRoutes = require('./routes/portariaRoutes');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+app.set('trust proxy', 1);
+
+
 // Middlewares Globais
 app.use(cors());
 app.use(express.json());
@@ -42,6 +45,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/eventos', eventoRoutes);
 app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/portaria', portariaRoutes);
+
 
 // Rota de Health Check
 app.get('/api/health', (req, res) => {
