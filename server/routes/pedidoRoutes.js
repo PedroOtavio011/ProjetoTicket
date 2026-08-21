@@ -165,13 +165,13 @@ router.post('/gerar-link-transferencia', autenticarToken, async (req, res) => {
   try {
     // 1. Confirma se o ingresso pertence ao usuário autenticado
     const [pedidos] = await db.query(
-      'SELECT id FROM pedidos WHERE id = ? AND usuario_id = ? AND status = "CONFIRMADO"',
-      [ticketId, usuarioId]
-    );
+    'SELECT id FROM pedidos WHERE id = ? AND usuario_id = ? AND status = ?',
+    [ticketId, usuarioId, 'CONFIRMADO']
+);
 
     const [ingressos] = await db.query(
-      'SELECT id FROM ingressos WHERE id = ? AND cliente_id = ? AND status = "CONFIRMADO"',
-      [ticketId, usuarioId]
+    'SELECT id FROM ingressos WHERE id = ? AND cliente_id = ? AND status = ?',
+    [ticketId, usuarioId, 'CONFIRMADO']
     ).catch(() => [[]]);
 
     if (pedidos.length === 0 && ingressos.length === 0) {
