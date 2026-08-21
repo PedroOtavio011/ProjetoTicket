@@ -6,6 +6,15 @@ Você não precisa baixar, configurar ou executar nada localmente.
 
 Toda a aplicação — Frontend (Vercel), Backend API (Render) e Banco de Dados (MySQL Cloud) — está no ar e integrada. Basta acessar o link do projeto e utilizar os botões de atalho na tela de login ou as credenciais de teste abaixo.
 
+🔑 Autenticação e Perfis de Teste (Produção vs. Localhost)
+Servidor Hospedado (Nuvem): Todos os fluxos e atalhos de login rápido (Cliente, Organizador e Portaria) funcionam perfeitamente e sem restrições usando a senha padrão secret. As regras de acesso e separação de papéis (RBAC) operam 100% ativas conforme a arquitetura oficial do projeto.
+
+Ambiente Local (localhost):
+
+Sincronização de Senhas: Devido ao hash gerado pelo bcrypt na sua máquina, os atalhos de login podem falhar se a base local estiver dessincronizada. Para testar localmente, você pode criar um novo usuário na tela /cadastro ou sincronizar a tabela pelo terminal.
+
+Flexibilidade de Testes para Organizador: No ambiente local, o perfil ORGANIZADOR recebeu permissão temporária para executar também as funções e validações de PORTARIA. Essa adaptação foi feita exclusivamente para acelerar os testes no seu computador, permitindo criar eventos, gerar vendas e ler QR codes no scanner sem a necessidade de alternar entre contas a todo momento.**
+
 ---
 
 ## 🌐 Link de Deploy
