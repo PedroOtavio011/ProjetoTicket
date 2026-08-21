@@ -44,14 +44,14 @@ router.post('/validar', autenticarToken, async (req, res) => {
         e.local,
         u.nome AS cliente_nome,
         u.email AS cliente_email
-       FROM ingressos i
-       JOIN pedidos p ON i.pedido_id = p.id
-       JOIN eventos e ON i.evento_id = e.id
-       LEFT JOIN usuarios u ON i.cliente_id = u.id OR p.usuario_id = u.id
-       WHERE i.qr_code_hash = ? 
+      FROM ingressos i
+      JOIN pedidos p ON i.pedido_id = p.id
+      JOIN eventos e ON i.evento_id = e.id
+      LEFT JOIN usuarios u ON i.cliente_id = u.id OR p.usuario_id = u.id
+      WHERE i.qr_code_hash = ? 
           OR i.id = ? 
           OR i.qr_code_hash LIKE ?`,
-      [codigoLimpo, codigoLimpo, `%${codigoLimpo}%`]
+      [codigoLimpo, codigoLimpo, `${codigoLimpo}%`] // Alterado para buscar hashes que COMEÇAM com o código digitado
     );
 
     // 1. INGRESSO NÃO ENCONTRADO
